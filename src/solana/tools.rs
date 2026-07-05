@@ -226,89 +226,121 @@ pub async fn sell_pump_fun_token(mint: String, token_amount: u64) -> Result<Stri
     .await
 }
 
-fn find_pump_swap_pool_and_creator(mint_str: &str) -> Result<(Pubkey, u64, u64, Pubkey)> {
-    // Use synchronous RPC client for pool discovery
+fn find_pump_swap_pool_sync(mint_str: &str) -> Result<(Pubkey, u64, u64, Pubkey)> {
     let rpc_url = SOLANA_RPC_URL.to_string();
     let sync_rpc = solana_client::rpc_client::RpcClient::new(rpc_url);
     let mint = parse_pubkey(mint_str)?;
-    let (pool_id, base_reserve, quote_reserve) = {
-        // Blocking pool discovery
-        let sol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
-        let pump_swap = Pubkey::from_str(crate::solana::constants::PUMP_SWAP_PROGRAM)?;
-        let token_prog = Pubkey::from_str(crate::solana::constants::TOKEN_PROGRAM)?;
-        let token_2022 = Pubkey::from_str(crate::solana::constants::TOKEN_2022_PROGRAM)?;
-        
-        let token_program = match sync_rpc.get_account(&mint) {
-            Ok(acc) if acc.owner == token_2022 => token_2022,
-            _ => token_prog,
-        };
-        
-        let mint_bytes = mint.to_bytes();
-        let mut pool_id = Pubkey::default();
-        
-        // Try filter-based search first
-        if let Ok(accounts) = sync_rpc.get_program_accounts_with_config(
-            &pump_swap,
-            solana_client::rpc_config::RpcProgramAccountsConfig {
-                filters: Some(vec![
-                    solana_client::rpc_filter::RpcFilterType::DataSize(300),
-                    solana_client::rpc_filter::RpcFilterType::Memcmp(
-                        solana_client::rpc_filter::Memcmp::new(
-                            43,
-                            solana_client::rpc_filter::MemcmpEncodedBytes::Base64(base64::encode(mint_bytes)),
-                        ),
+    
+    let sol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
+    let pump_swap = Pubkey::from_str(crate::solana::constants::PUMP_SWAP_PROGRAM)?;
+    let token_prog = Pubkey::from_str(crate::solana::constants::TOKEN_PROGRAM)?;
+    let token_2022 = Pubkey::from_str(crate::solana::constants::TOKEN_2022_PROGRAM)?;
+    
+    let token_program = match sync_rpc.get_account(&mint) {
+        Ok(acc) if acc.owner == token_2022 => token_2022,
+        _ => token_prog,
+    };
+    
+    let mint_bytes = mint.to_bytes();
+    let mut pool_id = Pubkey::default();
+    
+    if let Ok(accounts) = sync_rpc.get_program_accounts_with_config(
+        &pump_swap,
+        solana_client::rpc_config::RpcProgramAccountsConfig {
+            filters: Some(vec![
+                solana_client::rpc_filter::RpcFilterType::DataSize(300),
+                solana_client::rpc_filter::RpcFilterType::Memcmp(
+                    solana_client::rpc_filter::Memcmp::new(
+                        43,
+                        solana_client::rpc_filter::MemcmpEncodedBytes::Base64(base64::encode(mint_bytes)),
                     ),
-                ]),
-                account_config: solana_client::rpc_config::RpcAccountInfoConfig {
-                    encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
-                    ..Default::default()
-                },
+                ),
+            ]),
+            account_config: solana_client::rpc_config::RpcAccountInfoConfig {
+                encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
                 ..Default::default()
             },
-        ) {
-            for (pk, acc) in accounts.iter() {
-                if acc.data.len() >= 75 {
-                    if let Ok(pk_from_data) = Pubkey::try_from(&acc.data[43..75]) {
-                        if pk_from_data == mint {
-                            pool_id = *pk;
-                            break;
-                        }
+            ..Default::default()
+        },
+    ) {
+        for (pk, acc) in accounts.iter() {
+            if acc.data.len() >= 75 {
+                if let Ok(pk_from_data) = Pubkey::try_from(&acc.data[43..75]) {
+                    if pk_from_data == mint {
+                        pool_id = *pk;
+                        break;
                     }
                 }
             }
         }
-        
-        if pool_id == Pubkey::default() {
-            return Err(anyhow!("PumpSwap pool not found for {}", mint));
-        }
-        
-        let pool_base = spl_associated_token_account::get_associated_token_address_with_program_id(
-            &pool_id, &mint, &token_program,
-        );
-        let pool_quote = spl_associated_token_account::get_associated_token_address(&pool_id, &sol_mint);
-        
-        let accounts = sync_rpc.get_multiple_accounts(&[pool_base, pool_quote])?;
-        
-        let read_bal = |data: &[u8]| -> Option<u64> {
-            if data.len() < 72 { return None; }
-            let mut bytes = [0u8; 8];
-            bytes.copy_from_slice(&data[64..72]);
-            Some(u64::from_le_bytes(bytes))
-        };
-        
-        let base_bal = accounts[0].as_ref().and_then(|a| read_bal(&a.data)).unwrap_or(10_000_000_000_000);
-        let quote_bal = accounts[1].as_ref().and_then(|a| read_bal(&a.data)).unwrap_or(10_000_000_000);
-        
-        (pool_id, base_bal, quote_bal)
+    }
+    
+    if pool_id == Pubkey::default() {
+        return Err(anyhow!("PumpSwap pool not found for {}", mint_str));
+    }
+    
+    let pool_base = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &pool_id, &mint, &token_program,
+    );
+    let pool_quote = spl_associated_token_account::get_associated_token_address(&pool_id, &sol_mint);
+    let accounts = sync_rpc.get_multiple_accounts(&[pool_base, pool_quote])?;
+    
+    let read_bal = |data: &[u8]| -> Option<u64> {
+        if data.len() < 72 { return None; }
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&data[64..72]);
+        Some(u64::from_le_bytes(bytes))
     };
     
-    // Fetch coin creator via pump.fun API
-    let url = format!("https://frontend-api.pump.fun/coins/{}", mint);
-    let resp = reqwest::blocking::get(&url)?;
-    let token_info: crate::solana::pump::PumpTokenInfo = resp.json()?;
+    let base_bal = accounts[0].as_ref().and_then(|a| read_bal(&a.data)).unwrap_or(10_000_000_000_000);
+    let quote_bal = accounts[1].as_ref().and_then(|a| read_bal(&a.data)).unwrap_or(10_000_000_000);
+    
+    // Fetch coin creator via pump.fun API using ureq
+    let url = format!("https://frontend-api.pump.fun/coins/{}", mint_str);
+    let resp = ureq::get(&url).call()
+        .map_err(|e| anyhow!("HTTP request failed: {}", e))?;
+    let body = resp.into_string()
+        .map_err(|e| anyhow!("Failed to read response body: {}", e))?;
+    let token_info: crate::solana::pump::PumpTokenInfo = serde_json::from_str(&body)?;
     let coin_creator = parse_pubkey(&token_info.creator)?;
     
-    Ok((pool_id, base_reserve, quote_reserve, coin_creator))
+    Ok((pool_id, base_bal, quote_bal, coin_creator))
+}
+
+fn do_pump_swap_tx_buy(mint_str: &str, sol_amount: f64, slippage_bps: u64) -> Result<String> {
+    let (pool_id, base_reserve, quote_reserve, coin_creator) = find_pump_swap_pool_sync(mint_str)?;
+    
+    let rpc_url = SOLANA_RPC_URL.to_string();
+    let rpc = solana_client::rpc_client::RpcClient::new(rpc_url);
+    let mint = parse_pubkey(mint_str)?;
+    let wallet = crate::solana::util::load_keypair_for_tests();
+    
+    let rt = tokio::runtime::Runtime::new()?;
+    let tx = rt.block_on(crate::solana::pump_swap::build_buy_tx(
+        &solana_client::nonblocking::rpc_client::RpcClient::new(SOLANA_RPC_URL.to_string()),
+        &wallet, &mint, sol_amount,
+        &pool_id, &coin_creator, base_reserve, quote_reserve, slippage_bps,
+    ))?;
+    
+    let sig = rt.block_on(crate::solana::transaction::send_tx(&tx))?;
+    Ok(sig.to_string())
+}
+
+fn do_pump_swap_tx_sell(mint_str: &str, token_amount: u64) -> Result<String> {
+    let (pool_id, base_reserve, quote_reserve, coin_creator) = find_pump_swap_pool_sync(mint_str)?;
+    
+    let mint = parse_pubkey(mint_str)?;
+    let wallet = crate::solana::util::load_keypair_for_tests();
+    
+    let rt = tokio::runtime::Runtime::new()?;
+    let tx = rt.block_on(crate::solana::pump_swap::build_sell_tx(
+        &solana_client::nonblocking::rpc_client::RpcClient::new(SOLANA_RPC_URL.to_string()),
+        &wallet, &mint, token_amount,
+        &pool_id, &coin_creator, base_reserve, quote_reserve,
+    ))?;
+    
+    let sig = rt.block_on(crate::solana::transaction::send_tx(&tx))?;
+    Ok(sig.to_string())
 }
 
 #[tool(description = "
@@ -326,23 +358,11 @@ pub async fn buy_pump_swap_token(
     sol_amount: f64,
     slippage_bps: u64,
 ) -> Result<String> {
-    // Do blocking work first to avoid Sync issues
-    let (pool_id, base_reserve, quote_reserve, coin_creator) = 
-        tokio::task::spawn_blocking(move || {
-            find_pump_swap_pool_and_creator(&mint)
-        })
-        .await
-        .map_err(|e| anyhow!("Task join error: {}", e))??;
-    
-    execute_solana_transaction(move |owner| async move {
-        let wallet = crate::solana::util::load_keypair_for_tests();
-        let rpc = create_rpc();
-        let mint_pk = parse_pubkey(&mint)?;
-        crate::solana::pump_swap::build_buy_tx(
-            &rpc, &wallet, &mint_pk, sol_amount,
-            &pool_id, &coin_creator, base_reserve, quote_reserve, slippage_bps,
-        ).await
-    }).await
+    tokio::task::spawn_blocking(move || {
+        do_pump_swap_tx_buy(&mint, sol_amount, slippage_bps)
+    })
+    .await
+    .map_err(|e| anyhow!("Task join error: {}", e))?
 }
 
 #[tool(description = "
@@ -356,22 +376,11 @@ pub async fn sell_pump_swap_token(
     mint: String,
     token_amount: u64,
 ) -> Result<String> {
-    let (pool_id, base_reserve, quote_reserve, coin_creator) = 
-        tokio::task::spawn_blocking(move || {
-            find_pump_swap_pool_and_creator(&mint)
-        })
-        .await
-        .map_err(|e| anyhow!("Task join error: {}", e))??;
-    
-    execute_solana_transaction(move |owner| async move {
-        let wallet = crate::solana::util::load_keypair_for_tests();
-        let rpc = create_rpc();
-        let mint_pk = parse_pubkey(&mint)?;
-        crate::solana::pump_swap::build_sell_tx(
-            &rpc, &wallet, &mint_pk, token_amount,
-            &pool_id, &coin_creator, base_reserve, quote_reserve,
-        ).await
-    }).await
+    tokio::task::spawn_blocking(move || {
+        do_pump_swap_tx_sell(&mint, token_amount)
+    })
+    .await
+    .map_err(|e| anyhow!("Task join error: {}", e))?
 }
 
 #[tool(description = "
@@ -379,15 +388,15 @@ Find and return info about a PumpSwap pool for a given token mint.
 Returns pool_id, base_reserve, and quote_reserve which are needed for trading.
 ")]
 pub async fn get_pump_swap_pool_info(mint: String) -> Result<String> {
-    let res = tokio::task::spawn_blocking(move || {
-        let (pool_id, base_reserve, quote_reserve, _coin_creator) = find_pump_swap_pool_and_creator(&mint)?;
-        Ok::<_, anyhow::Error>(format!(
+    tokio::task::spawn_blocking(move || {
+        let (pool_id, base_reserve, quote_reserve, _coin_creator) = find_pump_swap_pool_sync(&mint)?;
+        Ok(format!(
             "Pool: {}, Base Reserve: {}, Quote Reserve (SOL lamports): {}",
             pool_id, base_reserve, quote_reserve
         ))
-    }).await.map_err(|e| anyhow!("Task join error: {}", e))?;
-    
-    res
+    })
+    .await
+    .map_err(|e| anyhow!("Task join error: {}", e))?
 }
 
 #[tool(description = "
