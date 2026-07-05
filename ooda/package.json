@@ -1,0 +1,34 @@
+{
+  "name": "@clawd/ooda-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clawd OODA loop harness for paper-only devnet trading, ANSI TUI monitoring, and deterministic or LLM-routed decisioning.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Solizardking/clawdbot-go"
+  },
+  "homepage": "https://github.com/Solizardking/clawdbot-go/tree/main/ooda",
+  "bugs": {
+    "url": "https://github.com/Solizardking/clawdbot-go/issues"
+  },
+  "scripts": {
+    "loop": "tsx loop.ts",
+    "tui": "tsx tui.ts",
+    "lint": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "execa": "^9.6.0",
+    "openai": "^5.20.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

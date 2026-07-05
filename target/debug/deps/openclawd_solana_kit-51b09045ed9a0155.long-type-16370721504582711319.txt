@@ -1,0 +1,1 @@
+RootProvider<alloy::transports::alloy_transport_http::Http<reqwest::Client>>: alloy_provider::provider::r#trait::Provider<_>

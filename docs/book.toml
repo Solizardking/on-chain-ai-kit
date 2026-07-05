@@ -1,0 +1,9 @@
+[book]
+authors = ["OpenClawd contributors"]
+language = "en"
+multilingual = false
+src = "."
+title = "OpenClawd SVM Kit"
+
+[output.html]
+site-url = "/openclawd-svm-kit/"
