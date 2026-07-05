@@ -13,6 +13,7 @@ default = ["solana"]
 full = ["solana", "http"]
 http = [
   "actix-web",
+  "actix-files",
   "actix-cors",
   "actix-web-lab",
   "tokio-stream",
@@ -87,6 +88,7 @@ spl-associated-token-account = { version = "6.0.0", optional = true }
 
 # http
 actix-web = { version = "4", optional = true }
+actix-files = { version = "0.6", optional = true }
 actix-cors = { version = "0.6", optional = true }
 actix-web-lab = { version = "0.20", optional = true }
 tokio-stream = { version = "0.1.17", optional = true }
