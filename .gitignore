@@ -5,7 +5,7 @@
 **/.keys/
 **/.keys/**
 !.keys/placeholder
-
+target
 # Env files (any name pattern, any depth)
 .env
 .env.*
