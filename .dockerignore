@@ -1,0 +1,39 @@
+# Keep Fly/Docker build context small (kit + frontend only)
+.git
+.github
+target
+**/target
+**/node_modules
+automaton/node_modules
+automaton/dist
+automaton/packages/**/node_modules
+ooda/node_modules
+ooda/journal
+zk-primitives/**/node_modules
+zk-primitives/**/target
+zk-primitives/**/dist
+*.md
+!README.md
+.env
+.env.*
+!**/.env.example
+src/.env.local
+**/*.rlib
+**/*.d
+**/*.rmeta
+**/.DS_Store
+**/*.log
+fly-builder*
+docs/book
+mocks
+lobster-council
+frontend/dist
+# keep frontend source
+# cargo registry not needed
+.cargo
+.idea
+.vscode
+**/.grok
+scratch
+tmp
+temp
