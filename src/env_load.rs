@@ -67,10 +67,13 @@ pub fn env_load_hint() -> String {
          Template: cp .env.example .env\n\
          \n\
          Default HTTP mode is LOCAL (no Privy):\n\
-           SOLANA_PRIVATE_KEY=...   # required\n\
-           ANTHROPIC_API_KEY=...    # required for agent replies\n\
+           SOLANA_PRIVATE_KEY=...   # required for signing\n\
            SOLANA_RPC_URL=...       # recommended\n\
            KIT_AUTH_MODE=local      # default\n\
+         LLM defaults to Clawd mesh (no Anthropic key needed):\n\
+           CLAWD_MESH_BASE_URL=https://clawd-inference-mesh.fly.dev/v1\n\
+           CLAWD_MESH_MODEL=zkrouter/auto\n\
+           (alias: https://mesh.x402.wtf/v1)\n\
          \n\
          Optional multi-user Privy mode:\n\
            KIT_AUTH_MODE=privy\n\

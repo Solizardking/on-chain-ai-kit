@@ -1,10 +1,11 @@
 #[cfg(feature = "solana")]
 use {
     anyhow::Result,
+    openclawd_solana_kit::common::mesh_agent_builder,
     openclawd_solana_kit::signer::solana::LocalSolanaSigner,
     openclawd_solana_kit::signer::SignerContext,
     openclawd_solana_kit::solana::util::env,
-    rig::streaming::{stream_to_stdout, StreamingPrompt},
+    rig::completion::Prompt,
     std::sync::Arc,
 };
 
@@ -15,22 +16,21 @@ async fn main() -> Result<()> {
 
     let signer = LocalSolanaSigner::new(env("SOLANA_PRIVATE_KEY"));
     SignerContext::with_signer(Arc::new(signer), async {
-        let agent = rig::providers::anthropic::Client::from_env()
-            .agent(rig::providers::anthropic::CLAUDE_3_5_SONNET)
-            .preamble("you are a portfolio checker, if you do wanna call a tool, outline the reasoning why that tool")
+        // Defaults to Clawd inference mesh (OpenAI-compatible)
+        let agent = mesh_agent_builder()
+            .preamble("you are a portfolio checker; call tools when needed and explain briefly")
             .max_tokens(1024)
             .tool(GetPortfolio)
             .build();
 
-        let mut stream = agent
-            .stream_prompt("whats the portfolio looking like?")
+        let response = agent
+            .prompt("whats the portfolio looking like?")
             .await?;
-
-        stream_to_stdout(agent, &mut stream).await?;
+        println!("{response}");
 
         Ok(())
-
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }

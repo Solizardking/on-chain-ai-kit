@@ -35,12 +35,21 @@ Local mode is for **dev only**. Anyone who can hit the port can spend from your 
 ## Required For Agents / local HTTP
 
 ```bash
-ANTHROPIC_API_KEY=...
 SOLANA_PRIVATE_KEY=...
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
-The bundled agent builder uses Anthropic through `rig-core`.
+### LLM — Clawd inference mesh (default)
+
+Agents use the **OpenAI-compatible** mesh by default (no Anthropic cloud key):
+
+| Variable | Default |
+|----------|---------|
+| `CLAWD_MESH_BASE_URL` | `https://clawd-inference-mesh.fly.dev/v1` |
+| `CLAWD_MESH_MODEL` | `zkrouter/auto` |
+| `CLAWD_MESH_API_KEY` | `clawd-mesh` (any non-empty Bearer is fine for public routes) |
+
+Public alias: `https://mesh.x402.wtf/v1`. Local Ollama models on the mesh: e.g. `CLAWD_MESH_MODEL=qwen2.5:1.5b` via free-router / sol-gpt lanes as exposed by the mesh.
 
 ```bash
 npm run kit

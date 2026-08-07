@@ -49,28 +49,30 @@ sh scripts/install.sh
 
 ---
 
-## HTTP kit (no Privy by default)
+## HTTP kit (local + Clawd mesh)
 
 ```bash
-# needs SOLANA_PRIVATE_KEY + ANTHROPIC_API_KEY in .env or src/.env.local
+# needs SOLANA_PRIVATE_KEY in .env or src/.env.local
+# LLM defaults to Clawd inference mesh (no Anthropic key)
 cargo run --features full --bin kit
 # or: npm run kit
 ```
 
-| Mode | Env | Auth on `/stream` |
-|------|-----|-------------------|
-| **`local` (default)** | `SOLANA_PRIVATE_KEY` | **None** |
-| `privy` | `KIT_AUTH_MODE=privy` + `PRIVY_*` | Bearer JWT |
-
-Env files auto-loaded: `.env`, `.env.local`, `src/.env.local`, `CLAWD_ENV_FILE`.  
-Template: [`.env.example`](./.env.example) · Docs: [configuration](./docs/configuration.md)
+| Concern | Default |
+|---------|---------|
+| Auth | **`local`** — `SOLANA_PRIVATE_KEY`, no Bearer |
+| LLM | **`https://clawd-inference-mesh.fly.dev/v1`** · model `zkrouter/auto` |
+| Alias | `https://mesh.x402.wtf/v1` |
+| Optional multi-user | `KIT_AUTH_MODE=privy` + `PRIVY_*` |
 
 ```bash
-# Frontend (kit running)
-open http://localhost:6969/chat.html   # stream chat, no login
-open http://localhost:6969/            # agent studio
-curl -s http://127.0.0.1:6969/healthz  # {"auth_mode":"local",...}
+# Frontend
+open http://localhost:6969/chat.html
+curl -s http://127.0.0.1:6969/healthz
+# → auth_mode=local, mesh_base_url=…/v1, mesh_model=zkrouter/auto
 ```
+
+Env: [`.env.example`](./.env.example) · [docs/configuration.md](./docs/configuration.md)
 
 ---
 

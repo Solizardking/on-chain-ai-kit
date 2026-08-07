@@ -197,13 +197,20 @@ Fix Privy mode:
     }
   } else {
     const localOk = check(LOCAL_KEYS, "HTTP / local signer");
-    check(["ANTHROPIC_API_KEY"], "agent LLM (needed for replies)");
+    const mesh =
+      process.env.CLAWD_MESH_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://clawd-inference-mesh.fly.dev/v1";
+    const model =
+      process.env.CLAWD_MESH_MODEL || process.env.OPENAI_MODEL || "zkrouter/auto";
+    log(`LLM mesh: ${mesh} · model=${model}`);
     if (!localOk) {
       console.log(`
 Fix local mode (default, no Privy):
   1. openclawd-kit setup
-  2. Set SOLANA_PRIVATE_KEY (and ANTHROPIC_API_KEY) in .env or src/.env.local
+  2. Set SOLANA_PRIVATE_KEY in .env or src/.env.local
   3. openclawd-kit start
+  LLM defaults to Clawd mesh (no ANTHROPIC key required)
   Optional multi-user: KIT_AUTH_MODE=privy + PRIVY_*
 `);
       process.exit(2);

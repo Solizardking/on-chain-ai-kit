@@ -15,6 +15,7 @@ pub mod constitution;
 pub mod data;
 pub mod dexscreener;
 pub mod env_load;
+pub mod mesh;
 pub mod reasoning_loop;
 pub mod signer;
 

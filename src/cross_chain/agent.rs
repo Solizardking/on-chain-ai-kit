@@ -1,9 +1,9 @@
 use anyhow::Result;
 use rig::agent::Agent;
-use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
+use crate::mesh::MeshCompletionModel;
 
 use crate::{
-    common::{claude_agent_builder, preamble_common},
+    common::{mesh_agent_builder, preamble_common},
     cross_chain::tools::{ApproveToken, CheckApproval, GetQuote, Swap},
     data::{FetchCandlesticks, FetchTopTokens},
     dexscreener::tools::SearchOnDexScreener,
@@ -11,14 +11,14 @@ use crate::{
 
 pub async fn create_cross_chain_agent(
     preamble: Option<String>,
-) -> Result<Agent<AnthropicCompletionModel>> {
+) -> Result<Agent<MeshCompletionModel>> {
     let preamble = preamble.unwrap_or_else(|| {
         format!(
             "you are a cross-chain trading agent\n\n{}",
             preamble_common()
         )
     });
-    Ok(claude_agent_builder()
+    Ok(mesh_agent_builder()
         .preamble(&preamble)
         .tool(SearchOnDexScreener)
         .tool(GetQuote)

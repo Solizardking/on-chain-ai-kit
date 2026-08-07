@@ -3,7 +3,9 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+use crate::mesh::{self, MeshCompletionModel};
 use crate::signer::{SignerContext, TransactionSigner};
+use rig::agent::{Agent, AgentBuilder};
 
 pub async fn wrap_unsafe<F, Fut, T>(f: F) -> Result<T>
 where
@@ -33,30 +35,55 @@ where
     tokio::spawn(async move { SignerContext::with_signer(signer, async { f().await }).await })
 }
 
-use rig::agent::{Agent, AgentBuilder};
-use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
-
 use crate::constitution;
 
-pub fn claude_agent_builder() -> AgentBuilder<AnthropicCompletionModel> {
-    rig::providers::anthropic::Client::from_env()
-        .agent(rig::providers::anthropic::CLAUDE_3_5_SONNET)
+/// Default Clawd inference mesh (OpenAI-compatible `/v1/chat/completions`).
+pub const DEFAULT_MESH_BASE_URL: &str = "https://clawd-inference-mesh.fly.dev/v1";
+/// Public alias for the same mesh app.
+pub const DEFAULT_MESH_PUBLIC_URL: &str = "https://mesh.x402.wtf/v1";
+/// Default free-router model on the mesh.
+pub const DEFAULT_MESH_MODEL: &str = "zkrouter/auto";
+
+pub fn mesh_base_url() -> String {
+    std::env::var("CLAWD_MESH_BASE_URL")
+        .or_else(|_| std::env::var("OPENAI_BASE_URL"))
+        .unwrap_or_else(|_| DEFAULT_MESH_BASE_URL.to_string())
+        .trim_end_matches('/')
+        .to_string()
 }
 
-pub async fn plain_agent() -> Result<Agent<AnthropicCompletionModel>> {
-    Ok(claude_agent_builder()
+pub fn mesh_api_key() -> String {
+    std::env::var("CLAWD_MESH_API_KEY")
+        .or_else(|_| std::env::var("OPENAI_API_KEY"))
+        .unwrap_or_else(|_| "clawd-mesh".to_string())
+}
+
+pub fn mesh_model() -> String {
+    std::env::var("CLAWD_MESH_MODEL")
+        .or_else(|_| std::env::var("OPENAI_MODEL"))
+        .unwrap_or_else(|_| DEFAULT_MESH_MODEL.to_string())
+}
+
+/// Default agent builder → Clawd inference mesh.
+pub fn mesh_agent_builder() -> AgentBuilder<MeshCompletionModel> {
+    mesh::mesh_agent_builder()
+}
+
+/// Backward-compatible alias.
+pub fn claude_agent_builder() -> AgentBuilder<MeshCompletionModel> {
+    mesh_agent_builder()
+}
+
+pub async fn plain_agent() -> Result<Agent<MeshCompletionModel>> {
+    Ok(mesh_agent_builder()
         .preamble(&preamble_common())
         .max_tokens(1024)
         .build())
 }
 
-/// Shared Clawd constitution + core rules for all kit agents (Solana / EVM / cross-chain).
-/// Prefer [`preamble_common`] over the empty legacy constant.
 pub fn preamble_common() -> String {
     constitution::clawd_system_preamble()
 }
 
-/// Legacy empty common preamble. Agents should use [`preamble_common`] so the
-/// Clawd constitution ships on every default agent path.
 #[deprecated(note = "use preamble_common() — includes Clawd constitution")]
 pub const PREAMBLE_COMMON: &str = "";

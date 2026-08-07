@@ -229,6 +229,8 @@ async fn healthz(state: web::Data<AppState>) -> Result<HttpResponse, Error> {
         "status": "ok",
         "auth_mode": state.auth_mode.as_str(),
         "local_pubkey": if pubkey.is_empty() { serde_json::Value::Null } else { json!(pubkey) },
+        "mesh_base_url": crate::common::mesh_base_url(),
+        "mesh_model": crate::common::mesh_model(),
         "timestamp": chrono::Utc::now().to_rfc3339()
     })))
 }
