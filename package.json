@@ -1,0 +1,51 @@
+{
+  "name": "openclawd-solana-kit",
+  "version": "1.0.0",
+  "description": "OpenClawd Solana Kit — SVM agents, SignerContext, Privy SSE HTTP. One-shot npm CLI.",
+  "license": "MIT",
+  "bin": {
+    "openclawd-kit": "./npm/bin/openclawd-kit.mjs",
+    "openclawd-solana-kit": "./npm/bin/openclawd-kit.mjs"
+  },
+  "scripts": {
+    "kit": "node ./npm/bin/openclawd-kit.mjs start",
+    "start": "node ./npm/bin/openclawd-kit.mjs start",
+    "check": "node ./npm/bin/openclawd-kit.mjs check",
+    "doctor": "node ./npm/bin/openclawd-kit.mjs doctor",
+    "setup": "node ./npm/bin/openclawd-kit.mjs setup",
+    "example:simple": "node ./npm/bin/openclawd-kit.mjs example simple",
+    "example:agent": "node ./npm/bin/openclawd-kit.mjs example solana_agent",
+    "build:kit": "node ./npm/bin/openclawd-kit.mjs build",
+    "postinstall": "node ./npm/bin/openclawd-kit.mjs postinstall || true"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "npm/**",
+    "scripts/install.sh",
+    "scripts/send-test-req.sh",
+    ".env.example",
+    "Cargo.toml",
+    "Cargo.lock",
+    "src/**",
+    "examples/**",
+    "docs/**",
+    "frontend/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clawdsolana/OpenClawd"
+  },
+  "keywords": [
+    "solana",
+    "openclawd",
+    "clawd",
+    "rig",
+    "agent",
+    "privy",
+    "svm"
+  ]
+}

@@ -14,12 +14,15 @@ pub mod common;
 pub mod constitution;
 pub mod data;
 pub mod dexscreener;
+pub mod env_load;
 pub mod reasoning_loop;
 pub mod signer;
 
 #[ctor::ctor]
 fn init() {
-    dotenv::dotenv().ok();
+    // Prefer multi-path load (.env, .env.local, src/.env.local, CLAWD_ENV_FILE)
+    // over bare dotenv::dotenv() which only looks for CWD/.env.
+    let _ = env_load::load_dotenv_files();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {

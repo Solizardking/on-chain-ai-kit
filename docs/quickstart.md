@@ -1,6 +1,16 @@
 # Quick Start
 
-Set the minimum environment:
+## One-shot HTTP service (npm)
+
+```bash
+npm install
+npm run setup && npm run doctor
+npm run kit          # Privy SSE on :6969 — needs PRIVY_* in .env or src/.env.local
+```
+
+## Library / examples
+
+Set the minimum environment (or put them in `.env` / `src/.env.local`):
 
 ```bash
 export ANTHROPIC_API_KEY=...
