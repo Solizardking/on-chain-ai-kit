@@ -164,21 +164,15 @@
     function drainSseBuffer(buf, state) {
       const parts = buf.split("\n\n");
       const rest = parts.pop() || "";
-      for (const frame of parts) {
-        const dataLine = frame
+      const frames = parts.concat(rest.trim() ? [rest] : []);
+      for (const frame of frames) {
+        const dataLines = frame
           .split("\n")
           .map((l) => l.trimEnd())
-          .find((l) => l.startsWith("data:"));
-        if (!dataLine) continue;
-        handleSsePayload(dataLine.replace(/^data:\s?/, ""), state);
-      }
-      // trailing frame without blank line
-      if (rest.trim()) {
-        const dataLine = rest
-          .split("\n")
-          .map((l) => l.trimEnd())
-          .find((l) => l.startsWith("data:"));
-        if (dataLine) handleSsePayload(dataLine.replace(/^data:\s?/, ""), state);
+          .filter((l) => l.startsWith("data:"));
+        for (const dataLine of dataLines) {
+          handleSsePayload(dataLine.replace(/^data:\s?/, ""), state);
+        }
       }
     }
 
@@ -190,9 +184,13 @@
         authMode = j.auth_mode || "local";
         const mesh = j.mesh_base_url || "";
         const model = j.mesh_model || "";
+        const provider = j.llm_provider || "mesh";
+        const api = j.llm_api || "";
         $("status").textContent =
           `kit OK · mode=${authMode}` +
           (j.local_pubkey ? ` · ${String(j.local_pubkey).slice(0, 8)}…` : "") +
+          ` · llm=${provider}` +
+          (api ? `/${api}` : "") +
           (model ? ` · model=${model}` : "") +
           (j.timestamp ? ` · ${j.timestamp}` : "");
         $("status").className = "status ok";
@@ -201,7 +199,10 @@
           (authMode === "local"
             ? "Local mode: no Privy. Kit signs with SOLANA_PRIVATE_KEY (dev only). "
             : "Privy mode: set window.__PRIVY_TOKEN for /stream. ") +
-          (mesh ? `LLM mesh: ${mesh}` : "");
+          (provider === "xai"
+            ? `LLM: xAI Grok (${model || "grok-4.5"}) via ${api || "responses"} — set XAI_API_KEY. `
+            : "LLM: Clawd free mesh (set XAI_API_KEY to prefer Grok 4.5). ") +
+          (mesh ? `endpoint: ${mesh}` : "");
         localStorage.setItem("kit_api_base", apiBase());
       } catch (e) {
         $("status").textContent = `kit unreachable: ${e.message}`;
@@ -258,12 +259,15 @@
           }),
         });
 
-        if (!res.ok && !res.body) {
-          append("error", `HTTP ${res.status}`);
+        // Non-SSE error bodies (JSON 4xx) — read as text, don't hang on stream
+        const ctype = (res.headers.get("content-type") || "").toLowerCase();
+        if (!res.ok && !ctype.includes("text/event-stream")) {
+          const t = await res.text();
+          append("error", `HTTP ${res.status}: ${t.slice(0, 600) || res.statusText}`);
           return;
         }
         if (!res.body) {
-          const t = await res.text();
+          const t = await res.text().catch(() => "");
           append("error", t || `HTTP ${res.status} (no body)`);
           return;
         }
@@ -276,20 +280,24 @@
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
+          // Only complete SSE frames (\n\n). Keep partial frame in buf.
           const parts = buf.split("\n\n");
           buf = parts.pop() || "";
           for (const frame of parts) {
-            const dataLine = frame
+            const dataLines = frame
               .split("\n")
               .map((l) => l.trimEnd())
-              .find((l) => l.startsWith("data:"));
-            if (!dataLine) continue;
-            handleSsePayload(dataLine.replace(/^data:\s?/, ""), state);
+              .filter((l) => l.startsWith("data:"));
+            for (const dataLine of dataLines) {
+              handleSsePayload(dataLine.replace(/^data:\s?/, ""), state);
+            }
           }
         }
-        // flush decoder + remainder
+        // flush decoder + remainder (final incomplete frame)
         buf += decoder.decode();
-        drainSseBuffer(buf, state);
+        if (buf.trim()) {
+          drainSseBuffer(buf, state);
+        }
         append("meta", "stream end");
       } catch (e) {
         append("error", e.message || String(e));

@@ -70,10 +70,16 @@ pub fn env_load_hint() -> String {
            SOLANA_PRIVATE_KEY=...   # required for signing\n\
            SOLANA_RPC_URL=...       # recommended\n\
            KIT_AUTH_MODE=local      # default\n\
-         LLM defaults to Clawd mesh (no Anthropic key needed):\n\
-           CLAWD_MESH_BASE_URL=https://clawd-inference-mesh.fly.dev/v1\n\
-           CLAWD_MESH_MODEL=zkrouter/auto\n\
-           (alias: https://mesh.x402.wtf/v1)\n\
+         LLM (priority):\n\
+           1) XAI_API_KEY=...          → Grok 4.5 via https://api.x.ai/v1/responses\n\
+              XAI_MODEL=grok-4.5      (default)\n\
+              XAI_STORE_MESSAGES=false (default; set true for server-side state)\n\
+              CLAWD_LLM_API=responses|chat\n\
+           2) else Clawd free mesh:\n\
+              CLAWD_MESH_BASE_URL=https://clawd-inference-mesh.fly.dev/v1\n\
+              CLAWD_MESH_MODEL=zkrouter/auto\n\
+              (alias: https://mesh.x402.wtf/v1)\n\
+           Force: CLAWD_LLM_PROVIDER=xai|mesh\n\
          \n\
          Optional multi-user Privy mode:\n\
            KIT_AUTH_MODE=privy\n\
@@ -115,5 +121,7 @@ mod tests {
         assert!(h.contains("SOLANA_PRIVATE_KEY"));
         assert!(h.contains("KIT_AUTH_MODE"));
         assert!(h.contains("local"));
+        assert!(h.contains("XAI_API_KEY"));
+        assert!(h.contains("grok-4.5") || h.contains("Grok"));
     }
 }

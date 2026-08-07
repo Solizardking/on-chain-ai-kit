@@ -512,7 +512,7 @@ async function pingKit() {
     const j = await r.json();
     el.style.color = "#14f195";
     el.textContent =
-      `kit OK · ${j.auth_mode || "?"} · mesh ${j.mesh_base_url || "?"} · model ${j.mesh_model || "?"}` +
+      `kit OK · ${j.auth_mode || "?"} · llm ${j.llm_provider || "mesh"}/${j.llm_api || "?"} · ${j.mesh_model || "?"} · ${j.mesh_base_url || "?"}` +
       (j.local_pubkey ? ` · wallet ${String(j.local_pubkey).slice(0, 8)}…` : "");
   } catch (e) {
     el.style.color = "#f0b90b";

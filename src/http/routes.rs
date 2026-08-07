@@ -24,7 +24,8 @@ use std::time::Duration;
 #[derive(Deserialize)]
 pub struct ChatRequest {
     prompt: String,
-    #[serde(deserialize_with = "deserialize_messages")]
+    /// Optional prior turns. Frontend often sends `[]`; missing field defaults empty.
+    #[serde(default, deserialize_with = "deserialize_messages")]
     chat_history: Vec<Message>,
     #[serde(default)]
     chain: Option<String>,
@@ -229,8 +230,11 @@ async fn healthz(state: web::Data<AppState>) -> Result<HttpResponse, Error> {
         "status": "ok",
         "auth_mode": state.auth_mode.as_str(),
         "local_pubkey": if pubkey.is_empty() { serde_json::Value::Null } else { json!(pubkey) },
+        "llm_provider": crate::common::llm_provider().as_str(),
+        "llm_api": crate::common::llm_api_style().as_str(),
         "mesh_base_url": crate::common::mesh_base_url(),
         "mesh_model": crate::common::mesh_model(),
+        "xai_key_set": crate::common::xai_api_key_present(),
         "timestamp": chrono::Utc::now().to_rfc3339()
     })))
 }
