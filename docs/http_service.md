@@ -4,10 +4,15 @@ The `http` feature exposes a small Server-Sent Events service for SVM agent
 sessions.
 
 ```bash
+# default: local mode (SOLANA_PRIVATE_KEY, no Privy)
 cargo run --features full --bin kit
+# or: npm run kit
 ```
 
 The server binds to `0.0.0.0:6969`.
+
+Default auth is **local** (`KIT_AUTH_MODE=local`): `/stream` needs **no** Bearer
+token and signs with `SOLANA_PRIVATE_KEY`. Optional: `KIT_AUTH_MODE=privy`.
 
 ## Endpoints
 
@@ -55,15 +60,19 @@ With the kit running (`npm run kit` or `cargo run --features full --bin kit`):
 
 CORS is permissive, so a separate Vite/Next app on another port can call the kit.
 
-### Separate React app (Privy)
+### Connect any frontend (local mode — default)
 
-1. Backend: same `PRIVY_APP_ID` / secret / verification key as in `src/.env.local`.
-2. Frontend: `@privy-io/react-auth` with that **public** `appId`.
-3. After `login()`, `const token = await getAccessToken()`.
-4. `POST http://localhost:6969/stream` with header `Authorization: Bearer ${token}` and body `{ prompt, chat_history: [], chain: "solana" }`.
-5. Read the response as **SSE** (`data: {"type":"Message"|"ToolCall"|"Error",...}`). Use `fetch` + `ReadableStream` (not `EventSource`, which is GET-only).
+```js
+await fetch("http://localhost:6969/stream", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+  body: JSON.stringify({ prompt: "what is my public key?", chat_history: [], chain: "solana" }),
+});
+// Read body as SSE: data: {"type":"Message"|"ToolCall"|"Error",...}
+// Use fetch + ReadableStream (not EventSource — POST required).
+```
 
-See [Authentication](./authentication.md) and `frontend/chat.html` for a working stream client.
+No login. See `frontend/chat.html`. Optional Privy multi-user: [Authentication](./authentication.md).
 
 ## Smoke Test
 

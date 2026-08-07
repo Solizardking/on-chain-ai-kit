@@ -15,21 +15,44 @@ pub struct LocalSolanaSigner {
 
 impl LocalSolanaSigner {
     pub fn new(private_key: String) -> Self {
-        let keypair = Keypair::from_base58_string(&private_key);
-        Self {
-            keypair: Arc::new(keypair),
+        Self::try_new(private_key).unwrap_or_else(|e| panic!("LocalSolanaSigner: {e}"))
+    }
+
+    /// Parse a base58 Solana secret key (64-byte keypair encoding).
+    pub fn try_new(private_key: impl AsRef<str>) -> Result<Self> {
+        let raw = private_key.as_ref().trim();
+        if raw.is_empty() {
+            anyhow::bail!("SOLANA_PRIVATE_KEY is empty");
         }
+        if raw.starts_with('.') || raw.contains("...") || raw == "your_key_here" {
+            anyhow::bail!(
+                "SOLANA_PRIVATE_KEY looks like a placeholder — set a real base58 secret keypair"
+            );
+        }
+        // Keypair::from_base58_string panics on bad input in some solana versions;
+        // decode via bs58-like path: try/catch using std::panic::catch_unwind is heavy —
+        // validate characters first.
+        if !raw
+            .chars()
+            .all(|c| matches!(c, '1'..='9' | 'A'..='H' | 'J'..='N' | 'P'..='Z' | 'a'..='k' | 'm'..='z'))
+        {
+            anyhow::bail!(
+                "SOLANA_PRIVATE_KEY is not valid base58 (got invalid characters or placeholder)"
+            );
+        }
+        let keypair = Keypair::from_base58_string(raw);
+        Ok(Self {
+            keypair: Arc::new(keypair),
+        })
     }
 }
 
 #[async_trait]
 impl TransactionSigner for LocalSolanaSigner {
-    #[cfg(feature = "evm")]
     fn address(&self) -> String {
-        unimplemented!()
+        self.keypair.pubkey().to_string()
     }
 
-    #[cfg(feature = "solana")]
     fn pubkey(&self) -> String {
         self.keypair.pubkey().to_string()
     }

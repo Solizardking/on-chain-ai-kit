@@ -19,43 +19,45 @@ cp .env.example .env
 npm run doctor   # verifies PRIVY_* and optional agent keys
 ```
 
-If `cargo run --features full --bin kit` prints `MissingEnvVar("PRIVY_APP_ID")`,
-no loaded file contained that key. Fix with `npm run setup` + edit, or export vars.
+## Auth modes (`KIT_AUTH_MODE`)
 
-## Required For Agents
+| Mode | Default | Needs | `/stream` auth |
+|------|---------|-------|----------------|
+| **`local`** | **yes** | `SOLANA_PRIVATE_KEY`, `ANTHROPIC_API_KEY` | **None** (open) |
+| `privy` | no | `PRIVY_*` + Anthropic | Bearer Privy JWT |
+
+```bash
+KIT_AUTH_MODE=local   # default — no Privy
+```
+
+Local mode is for **dev only**. Anyone who can hit the port can spend from your key.
+
+## Required For Agents / local HTTP
 
 ```bash
 ANTHROPIC_API_KEY=...
-```
-
-The bundled agent builder uses Anthropic through `rig-core`.
-
-## Local Solana Signing
-
-```bash
 SOLANA_PRIVATE_KEY=...
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
-`SOLANA_PRIVATE_KEY` is only needed when using `LocalSolanaSigner`. The RPC URL
-defaults to the public mainnet endpoint when unset.
-
-## HTTP Service With Privy
+The bundled agent builder uses Anthropic through `rig-core`.
 
 ```bash
+npm run kit
+# or: cargo run --features full --bin kit
+```
+
+## Optional: HTTP with Privy (multi-user)
+
+```bash
+KIT_AUTH_MODE=privy
 PRIVY_APP_ID=...
 PRIVY_APP_SECRET=...
 PRIVY_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 SOLANA_RPC_URL=...
 ```
 
-When the `http` feature is enabled, user signing is delegated through Privy.
-Do not pass local private keys to the HTTP service.
-
-```bash
-npm run kit
-# equivalent: cargo run --features full --bin kit
-```
+See [Authentication](./authentication.md).
 
 ## Phoenix/Rise Perps
 

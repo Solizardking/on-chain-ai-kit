@@ -1,5 +1,5 @@
 use super::middleware::verify_auth;
-use super::state::AppState;
+use super::state::{AppState, AuthMode};
 use crate::common::spawn_with_signer;
 #[cfg(feature = "cross-chain")]
 use crate::cross_chain::agent::create_cross_chain_agent;
@@ -13,7 +13,6 @@ use crate::signer::TransactionSigner;
 use crate::solana::agent::create_solana_agent;
 use actix_web::{get, post, web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_lab::sse;
-use anyhow::Result;
 use rig::completion::Message;
 use rig::message::UserContent;
 use rig::OneOrMany;
@@ -41,11 +40,36 @@ pub enum StreamResponse {
     Error(String),
 }
 
-#[derive(Serialize)]
-pub enum ServerError {
-    WalletError,
-    PrivyError,
-    ChainNotSupported,
+async fn build_signer(
+    state: &AppState,
+    req: &HttpRequest,
+) -> Result<Arc<dyn TransactionSigner>, String> {
+    match state.auth_mode {
+        AuthMode::Local => {
+            #[cfg(feature = "solana")]
+            {
+                state
+                    .local_signer
+                    .clone()
+                    .map(|s| s as Arc<dyn TransactionSigner>)
+                    .ok_or_else(|| "Local signer not configured".into())
+            }
+            #[cfg(not(feature = "solana"))]
+            {
+                Err("solana feature disabled".into())
+            }
+        }
+        AuthMode::Privy => {
+            let session = verify_auth(req)
+                .await
+                .map_err(|e| format!("unauthorized: {e}"))?;
+            let privy = state
+                .privy
+                .clone()
+                .ok_or_else(|| "Privy client not configured".to_string())?;
+            Ok(Arc::new(PrivySigner::new(privy, session)) as Arc<dyn TransactionSigner>)
+        }
+    }
 }
 
 #[post("/stream")]
@@ -54,23 +78,24 @@ async fn stream(
     state: web::Data<AppState>,
     request: web::Json<ChatRequest>,
 ) -> impl Responder {
-    let user_session = match verify_auth(&req).await {
-        Ok(s) => s,
-        Err(e) => {
-            let (tx, rx) = tokio::sync::mpsc::channel::<sse::Event>(1);
-            let error_event = sse::Event::Data(sse::Data::new(
-                serde_json::to_string(&StreamResponse::Error(format!(
-                    "Error: unauthorized: {}",
-                    e
-                )))
-                .unwrap(),
-            ));
-            let _ = tx.send(error_event).await;
-            return sse::Sse::from_infallible_receiver(rx);
-        }
+    let (tx, rx) = tokio::sync::mpsc::channel::<sse::Event>(32);
+
+    let send_err = |tx: &tokio::sync::mpsc::Sender<sse::Event>, msg: String| {
+        let error_event = sse::Event::Data(sse::Data::new(
+            serde_json::to_string(&StreamResponse::Error(msg)).unwrap(),
+        ));
+        let _ = tx.try_send(error_event);
     };
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<sse::Event>(32);
+    let signer = match build_signer(state.get_ref(), &req).await {
+        Ok(s) => s,
+        Err(e) => {
+            send_err(&tx, format!("Error: {e}"));
+            return sse::Sse::from_infallible_receiver(rx)
+                .with_keep_alive(Duration::from_secs(15))
+                .with_retry_duration(Duration::from_secs(10));
+        }
+    };
 
     let preamble = request.preamble.clone();
 
@@ -79,78 +104,57 @@ async fn stream(
         Some("solana") | None => match create_solana_agent(preamble).await {
             Ok(agent) => Arc::new(agent),
             Err(e) => {
-                let error_event = sse::Event::Data(sse::Data::new(
-                    serde_json::to_string(&StreamResponse::Error(format!(
-                        "Failed to create Solana agent: {}",
-                        e
-                    )))
-                    .unwrap(),
-                ));
-                let _ = tx.send(error_event).await;
-                return sse::Sse::from_infallible_receiver(rx);
+                send_err(&tx, format!("Failed to create Solana agent: {e}"));
+                return sse::Sse::from_infallible_receiver(rx)
+                    .with_keep_alive(Duration::from_secs(15))
+                    .with_retry_duration(Duration::from_secs(10));
             }
         },
         #[cfg(feature = "evm")]
         Some("evm") => match create_evm_agent(preamble).await {
             Ok(agent) => Arc::new(agent),
             Err(e) => {
-                let error_event = sse::Event::Data(sse::Data::new(
-                    serde_json::to_string(&StreamResponse::Error(format!(
-                        "Failed to create EVM agent: {}",
-                        e
-                    )))
-                    .unwrap(),
-                ));
-                let _ = tx.send(error_event).await;
-                return sse::Sse::from_infallible_receiver(rx);
+                send_err(&tx, format!("Failed to create EVM agent: {e}"));
+                return sse::Sse::from_infallible_receiver(rx)
+                    .with_keep_alive(Duration::from_secs(15))
+                    .with_retry_duration(Duration::from_secs(10));
             }
         },
         #[cfg(feature = "cross-chain")]
         Some("omni") => match create_cross_chain_agent(preamble).await {
             Ok(agent) => Arc::new(agent),
             Err(e) => {
-                let error_event = sse::Event::Data(sse::Data::new(
-                    serde_json::to_string(&StreamResponse::Error(format!(
-                        "Failed to create cross-chain agent: {}",
-                        e
-                    )))
-                    .unwrap(),
-                ));
-                let _ = tx.send(error_event).await;
-                return sse::Sse::from_infallible_receiver(rx);
+                send_err(&tx, format!("Failed to create cross-chain agent: {e}"));
+                return sse::Sse::from_infallible_receiver(rx)
+                    .with_keep_alive(Duration::from_secs(15))
+                    .with_retry_duration(Duration::from_secs(10));
             }
         },
         Some(chain) => {
-            let error_event = sse::Event::Data(sse::Data::new(
-                serde_json::to_string(&StreamResponse::Error(format!(
-                    "Unsupported chain: {}",
-                    chain
-                )))
-                .unwrap(),
-            ));
-            let _ = tx.send(error_event).await;
-            return sse::Sse::from_infallible_receiver(rx);
+            send_err(&tx, format!("Unsupported chain: {chain}"));
+            return sse::Sse::from_infallible_receiver(rx)
+                .with_keep_alive(Duration::from_secs(15))
+                .with_retry_duration(Duration::from_secs(10));
         }
         #[cfg(not(feature = "solana"))]
         None => {
-            let error_event = sse::Event::Data(sse::Data::new(
-                serde_json::to_string(&StreamResponse::Error(
-                    "No default chain is enabled. Rebuild with the solana feature.".to_string(),
-                ))
-                .unwrap(),
-            ));
-            let _ = tx.send(error_event).await;
-            return sse::Sse::from_infallible_receiver(rx);
+            send_err(
+                &tx,
+                "No default chain is enabled. Rebuild with the solana feature.".into(),
+            );
+            return sse::Sse::from_infallible_receiver(rx)
+                .with_keep_alive(Duration::from_secs(15))
+                .with_retry_duration(Duration::from_secs(10));
         }
     };
 
     let prompt = request.prompt.clone();
     let messages = request.chat_history.clone();
-    println!("prompt: {}", prompt);
-    println!("messages: {:?}", messages);
-
-    let signer: Arc<dyn TransactionSigner> =
-        Arc::new(PrivySigner::new(state.privy.clone(), user_session.clone()));
+    tracing::info!(
+        auth_mode = state.auth_mode.as_str(),
+        prompt = %prompt,
+        "stream request"
+    );
 
     spawn_with_signer(signer, || async move {
         let reasoning_loop = ReasoningLoop::new(agent).with_stdout(false);
@@ -160,10 +164,8 @@ async fn stream(
             content: OneOrMany::one(UserContent::text(prompt)),
         });
 
-        // Create a channel for the reasoning loop to send responses
         let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel(32);
 
-        // Create a separate task to handle sending responses
         let tx_clone = tx.clone();
         let send_task = tokio::spawn(async move {
             while let Some(response) = internal_rx.recv().await {
@@ -186,15 +188,12 @@ async fn stream(
             }
         });
 
-        // Run the reasoning loop in the current task (with signer context)
         let loop_result = reasoning_loop
             .stream(initial_messages, Some(internal_tx))
             .await;
 
-        // Wait for the send task to complete
         let _ = send_task.await;
 
-        // Check if the reasoning loop completed successfully
         if let Err(e) = loop_result {
             let _ = tx
                 .send(sse::Event::Data(sse::Data::new(
@@ -213,24 +212,68 @@ async fn stream(
 }
 
 #[get("/healthz")]
-async fn healthz() -> Result<HttpResponse, Error> {
+async fn healthz(state: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    #[cfg(feature = "solana")]
+    let pubkey = {
+        use crate::signer::TransactionSigner;
+        state
+            .local_signer
+            .as_ref()
+            .map(|s| s.pubkey())
+            .unwrap_or_default()
+    };
+    #[cfg(not(feature = "solana"))]
+    let pubkey = String::new();
+
     Ok(HttpResponse::Ok().json(json!({
         "status": "ok",
+        "auth_mode": state.auth_mode.as_str(),
+        "local_pubkey": if pubkey.is_empty() { serde_json::Value::Null } else { json!(pubkey) },
         "timestamp": chrono::Utc::now().to_rfc3339()
     })))
 }
 
 #[get("/auth")]
-async fn auth(req: HttpRequest) -> Result<HttpResponse, Error> {
-    let user_session = match verify_auth(&req).await {
-        Ok(session) => session,
-        Err(e) => return Ok(HttpResponse::Unauthorized().json(json!({ "error": e.to_string() }))),
-    };
-
-    Ok(HttpResponse::Ok().json(json!({
-        "status": "ok",
-        "wallet_address": user_session.wallet_address,
-    })))
+async fn auth(req: HttpRequest, state: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    match state.auth_mode {
+        AuthMode::Local => {
+            #[cfg(feature = "solana")]
+            {
+                use crate::signer::TransactionSigner;
+                let pk = state
+                    .local_signer
+                    .as_ref()
+                    .map(|s| s.pubkey())
+                    .unwrap_or_default();
+                Ok(HttpResponse::Ok().json(json!({
+                    "status": "ok",
+                    "auth_mode": "local",
+                    "wallet_address": pk,
+                    "note": "No Privy — kit signs with SOLANA_PRIVATE_KEY. Dev only; do not expose publicly."
+                })))
+            }
+            #[cfg(not(feature = "solana"))]
+            {
+                let _ = req;
+                Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "solana feature disabled"
+                })))
+            }
+        }
+        AuthMode::Privy => {
+            let user_session = match verify_auth(&req).await {
+                Ok(session) => session,
+                Err(e) => {
+                    return Ok(HttpResponse::Unauthorized().json(json!({ "error": e.to_string() })))
+                }
+            };
+            Ok(HttpResponse::Ok().json(json!({
+                "status": "ok",
+                "auth_mode": "privy",
+                "wallet_address": user_session.wallet_address,
+            })))
+        }
+    }
 }
 
 fn deserialize_messages<'de, D>(deserializer: D) -> Result<Vec<Message>, D::Error>

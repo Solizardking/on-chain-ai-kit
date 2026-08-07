@@ -49,41 +49,27 @@ sh scripts/install.sh
 
 ---
 
-## Why `cargo run --features full --bin kit` failed
-
-```text
-Error: MissingEnvVar("PRIVY_APP_ID")
-```
-
-The HTTP binary **requires Privy env** (see [docs/configuration.md](./docs/configuration.md) and [docs/authentication.md](./docs/authentication.md)):
-
-| Variable | Purpose |
-|----------|---------|
-| `PRIVY_APP_ID` | App id + JWT audience |
-| `PRIVY_APP_SECRET` | Privy API secret |
-| `PRIVY_VERIFICATION_KEY` | PEM public key (single line, `\n` escaped) |
-
-The kit now auto-loads:
-
-1. `CLAWD_ENV_FILE` (if set)
-2. `.env` / `.env.local` (cwd and crate root)
-3. **`src/.env.local`** (common local layout)
-
-So if your secrets are already in `src/.env.local`, from the **repo root**:
+## HTTP kit (no Privy by default)
 
 ```bash
+# needs SOLANA_PRIVATE_KEY + ANTHROPIC_API_KEY in .env or src/.env.local
 cargo run --features full --bin kit
-# or
-npm run kit
+# or: npm run kit
 ```
 
-You should see: `openclawd-kit: loaded env from .../src/.env.local`.
+| Mode | Env | Auth on `/stream` |
+|------|-----|-------------------|
+| **`local` (default)** | `SOLANA_PRIVATE_KEY` | **None** |
+| `privy` | `KIT_AUTH_MODE=privy` + `PRIVY_*` | Bearer JWT |
 
-Template: [`.env.example`](./.env.example)
+Env files auto-loaded: `.env`, `.env.local`, `src/.env.local`, `CLAWD_ENV_FILE`.  
+Template: [`.env.example`](./.env.example) · Docs: [configuration](./docs/configuration.md)
 
 ```bash
-cp .env.example .env   # then fill values
-# or:  cp .env.example src/.env.local
+# Frontend (kit running)
+open http://localhost:6969/chat.html   # stream chat, no login
+open http://localhost:6969/            # agent studio
+curl -s http://127.0.0.1:6969/healthz  # {"auth_mode":"local",...}
 ```
 
 ---

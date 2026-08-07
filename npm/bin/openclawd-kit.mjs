@@ -37,6 +37,7 @@ const ENV_CANDIDATES = [
 ].filter(Boolean);
 
 const PRIVY_KEYS = ["PRIVY_APP_ID", "PRIVY_APP_SECRET", "PRIVY_VERIFICATION_KEY"];
+const LOCAL_KEYS = ["SOLANA_PRIVATE_KEY"];
 const AGENT_KEYS = ["ANTHROPIC_API_KEY", "SOLANA_PRIVATE_KEY"];
 
 function log(msg) {
@@ -150,7 +151,7 @@ function cmdSetup() {
     log(`.env already exists at ${dest}`);
   } else {
     copyFileSync(example, dest);
-    log(`wrote ${dest} — fill PRIVY_* and ANTHROPIC_API_KEY (see docs/configuration.md)`);
+    log(`wrote ${dest} — fill SOLANA_PRIVATE_KEY + ANTHROPIC_API_KEY (Privy optional)`);
   }
   const local = join(PKG_ROOT, "src/.env.local");
   if (existsSync(local)) {
@@ -177,33 +178,56 @@ function cmdDoctor() {
     return miss.length === 0;
   };
 
-  const privyOk = check(PRIVY_KEYS, "HTTP / Privy");
-  check(AGENT_KEYS, "local examples (optional for HTTP)");
+  const mode = (process.env.KIT_AUTH_MODE || "local").toLowerCase();
+  log(`KIT_AUTH_MODE: ${mode}`);
   if (process.env.SOLANA_RPC_URL) log(`SOLANA_RPC_URL: set`);
-  else log(`SOLANA_RPC_URL: default will be public mainnet`);
+  else log(`SOLANA_RPC_URL: default public mainnet`);
 
-  if (!privyOk) {
-    console.log(`
-Fix HTTP start:
+  if (mode === "privy") {
+    const privyOk = check(PRIVY_KEYS, "HTTP / Privy");
+    check(["ANTHROPIC_API_KEY"], "agent LLM");
+    if (!privyOk) {
+      console.log(`
+Fix Privy mode:
   1. openclawd-kit setup
-  2. Edit .env or src/.env.local with PRIVY_APP_ID, PRIVY_APP_SECRET, PRIVY_VERIFICATION_KEY
-  3. See docs/authentication.md for the Bearer JWT frontend shape
-  4. openclawd-kit start
+  2. Set PRIVY_APP_ID, PRIVY_APP_SECRET, PRIVY_VERIFICATION_KEY
+  3. KIT_AUTH_MODE=privy
 `);
-    process.exit(2);
+      process.exit(2);
+    }
+  } else {
+    const localOk = check(LOCAL_KEYS, "HTTP / local signer");
+    check(["ANTHROPIC_API_KEY"], "agent LLM (needed for replies)");
+    if (!localOk) {
+      console.log(`
+Fix local mode (default, no Privy):
+  1. openclawd-kit setup
+  2. Set SOLANA_PRIVATE_KEY (and ANTHROPIC_API_KEY) in .env or src/.env.local
+  3. openclawd-kit start
+  Optional multi-user: KIT_AUTH_MODE=privy + PRIVY_*
+`);
+      process.exit(2);
+    }
   }
   log("doctor: OK — openclawd-kit start");
 }
 
 function cmdStart() {
   loadEnvIntoProcess();
-  const miss = PRIVY_KEYS.filter((k) => !process.env[k]?.trim());
-  if (miss.length) {
-    die(
-      `missing ${miss.join(", ")}.\nRun: openclawd-kit setup && edit .env\nDocs: docs/configuration.md`
-    );
+  const mode = (process.env.KIT_AUTH_MODE || "local").toLowerCase();
+  if (mode === "privy") {
+    const miss = PRIVY_KEYS.filter((k) => !process.env[k]?.trim());
+    if (miss.length) {
+      die(`Privy mode missing ${miss.join(", ")}. Or use default local mode (unset KIT_AUTH_MODE).`);
+    }
+  } else {
+    if (!process.env.SOLANA_PRIVATE_KEY?.trim()) {
+      die(
+        "Local mode needs SOLANA_PRIVATE_KEY.\nRun: openclawd-kit setup && edit .env\nDocs: docs/configuration.md"
+      );
+    }
   }
-  log("cargo run --features full --bin kit");
+  log(`cargo run --features full --bin kit  (auth_mode=${mode})`);
   runCargo(["run", "--features", "full", "--bin", "kit"]);
 }
 

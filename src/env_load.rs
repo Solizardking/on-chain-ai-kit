@@ -1,14 +1,12 @@
 //! Multi-path dotenv loader for local kit development and the `kit` HTTP binary.
 //!
-//! Loads the first matching files (later files fill only missing keys via
-//! `dotenv`, which does not override already-set variables):
+//! Loads files (dotenv does not override already-set variables):
+//! - `CLAWD_ENV_FILE` if set
 //! - process CWD: `.env`, `.env.local`, `src/.env.local`
 //! - crate root (`CARGO_MANIFEST_DIR`): same names
-//! - `CLAWD_ENV_FILE` if set (single explicit path, loaded first)
 
 use std::path::{Path, PathBuf};
 
-/// Relative env filenames searched under each root.
 const ENV_NAMES: &[&str] = &[".env", ".env.local", "src/.env.local"];
 
 /// Load kit environment files. Safe to call multiple times.
@@ -57,31 +55,44 @@ fn try_load(path: &Path) -> bool {
     dotenv::from_path(path).is_ok()
 }
 
-/// Human-readable help when Privy (or other) env is still missing after load.
+/// Help text when kit cannot start.
 pub fn env_load_hint() -> String {
     let manifest = env!("CARGO_MANIFEST_DIR");
     format!(
-        "Missing env after loading dotenv files.\n\
-         Put secrets in one of:\n\
+        "Put secrets in one of:\n\
            {manifest}/.env\n\
            {manifest}/.env.local\n\
            {manifest}/src/.env.local\n\
-           ./.env  (current directory)\n\
          Or: export CLAWD_ENV_FILE=/absolute/path/to/env\n\
          Template: cp .env.example .env\n\
-         Docs: docs/configuration.md · docs/http_service.md · docs/authentication.md\n\
-         Required for `cargo run --features full --bin kit`:\n\
-           PRIVY_APP_ID, PRIVY_APP_SECRET, PRIVY_VERIFICATION_KEY\n\
-         Optional: ANTHROPIC_API_KEY, SOLANA_RPC_URL\n\
-         One-shot: npm install && npm run kit   ·   npx openclawd-solana-kit start"
+         \n\
+         Default HTTP mode is LOCAL (no Privy):\n\
+           SOLANA_PRIVATE_KEY=...   # required\n\
+           ANTHROPIC_API_KEY=...    # required for agent replies\n\
+           SOLANA_RPC_URL=...       # recommended\n\
+           KIT_AUTH_MODE=local      # default\n\
+         \n\
+         Optional multi-user Privy mode:\n\
+           KIT_AUTH_MODE=privy\n\
+           PRIVY_APP_ID / PRIVY_APP_SECRET / PRIVY_VERIFICATION_KEY\n\
+         \n\
+         Docs: docs/configuration.md · docs/http_service.md\n\
+         One-shot: npm run kit"
     )
 }
 
-/// True if the three Privy vars required by the HTTP binary are set (non-empty).
+/// True if Privy env is fully set (optional path only).
 pub fn privy_env_ready() -> bool {
     ["PRIVY_APP_ID", "PRIVY_APP_SECRET", "PRIVY_VERIFICATION_KEY"]
         .iter()
         .all(|k| std::env::var(k).map(|v| !v.trim().is_empty()).unwrap_or(false))
+}
+
+/// True if local kit mode can start.
+pub fn local_env_ready() -> bool {
+    std::env::var("SOLANA_PRIVATE_KEY")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -92,15 +103,14 @@ mod tests {
     fn load_dotenv_files_is_idempotent() {
         let a = load_dotenv_files();
         let b = load_dotenv_files();
-        // Second call still returns the same set of existing paths (or empty).
         assert_eq!(a.len(), b.len());
     }
 
     #[test]
-    fn env_load_hint_mentions_privy_and_example() {
+    fn env_load_hint_mentions_local_default() {
         let h = env_load_hint();
-        assert!(h.contains("PRIVY_APP_ID"));
-        assert!(h.contains(".env.example"));
-        assert!(h.contains("configuration.md"));
+        assert!(h.contains("SOLANA_PRIVATE_KEY"));
+        assert!(h.contains("KIT_AUTH_MODE"));
+        assert!(h.contains("local"));
     }
 }
