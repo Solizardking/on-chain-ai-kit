@@ -36,6 +36,7 @@
     "examples/**/*.rs",
     "docs/**/*.md",
     "frontend/**/*.html",
+    "frontend/**/*.svg",
     "Dockerfile",
     "fly.toml",
     ".npmignore",

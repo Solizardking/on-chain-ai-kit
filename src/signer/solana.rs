@@ -18,20 +18,24 @@ impl LocalSolanaSigner {
         Self::try_new(private_key).unwrap_or_else(|e| panic!("LocalSolanaSigner: {e}"))
     }
 
-    /// Parse a base58 Solana secret key (64-byte keypair encoding).
+    /// Parse a base58 Solana secret key (64-byte keypair encoding, or 32-byte seed).
     pub fn try_new(private_key: impl AsRef<str>) -> Result<Self> {
         let raw = private_key.as_ref().trim();
         if raw.is_empty() {
             anyhow::bail!("SOLANA_PRIVATE_KEY is empty");
         }
-        if raw.starts_with('.') || raw.contains("...") || raw == "your_key_here" {
+        let lower = raw.to_ascii_lowercase();
+        if raw == "your_key_here"
+            || lower == "changeme"
+            || lower == "todo"
+            || raw.starts_with("PLACEHOLDER")
+            || raw.starts_with("xxx")
+        {
             anyhow::bail!(
                 "SOLANA_PRIVATE_KEY looks like a placeholder — set a real base58 secret keypair"
             );
         }
-        // Keypair::from_base58_string panics on bad input in some solana versions;
-        // decode via bs58-like path: try/catch using std::panic::catch_unwind is heavy —
-        // validate characters first.
+        // Validate base58 charset (no `.` in alphabet — scanners' "..." never match real keys).
         if !raw
             .chars()
             .all(|c| matches!(c, '1'..='9' | 'A'..='H' | 'J'..='N' | 'P'..='Z' | 'a'..='k' | 'm'..='z'))
@@ -40,7 +44,14 @@ impl LocalSolanaSigner {
                 "SOLANA_PRIVATE_KEY is not valid base58 (got invalid characters or placeholder)"
             );
         }
-        let keypair = Keypair::from_base58_string(raw);
+        // Keypair::from_base58_string panics on bad length/decode in some solana versions.
+        let keypair = std::panic::catch_unwind(|| Keypair::from_base58_string(raw))
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "SOLANA_PRIVATE_KEY failed to decode as a Solana keypair \
+                     (need base58 of 64-byte secret key from `solana-keygen new --no-outfile`)"
+                )
+            })?;
         Ok(Self {
             keypair: Arc::new(keypair),
         })
