@@ -68,3 +68,22 @@ test("CLI resolves package root containing Cargo.toml and frontend", () => {
   assert.ok(existsSync(join(ROOT, "Cargo.toml")));
   assert.ok(existsSync(join(ROOT, "src/bin/kit.rs")));
 });
+
+test("npm pack tarball excludes secret env files", () => {
+  const r = spawnSync("npm", ["pack", "--dry-run"], {
+    encoding: "utf8",
+    cwd: ROOT,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const out = (r.stdout || "") + (r.stderr || "");
+  // Must ship example template only
+  assert.match(out, /\.env\.example/);
+  // Must NOT ship local secrets
+  assert.doesNotMatch(out, /src\/\.env\.local/);
+  assert.doesNotMatch(out, /(?<!example)\.env(?!\.example)/);
+  assert.doesNotMatch(out, /\.env\.local/);
+  // One-shot surfaces still packed
+  assert.match(out, /npm\/bin\/openclawd-kit\.mjs/);
+  assert.match(out, /frontend\/index\.html/);
+  assert.match(out, /frontend\/chat\.html/);
+});
