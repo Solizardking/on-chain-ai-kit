@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClawd Kit · Stream Chat</title>
+  <style>
+    :root {
+      --bg: #0a0c10; --surface: #13161c; --border: #2a3040;
+      --text: #e4e8f0; --muted: #8892a6; --accent: #14f195; --warn: #f0b90b; --err: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+    header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      background: var(--surface); display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; }
+    header a { color: var(--accent); font-size: 0.8rem; text-decoration: none; }
+    .cfg {
+      display: grid; gap: 0.5rem; grid-template-columns: 1fr auto;
+      flex: 1; min-width: 280px; max-width: 720px;
+    }
+    input, select, textarea, button {
+      font: inherit; border-radius: 8px; border: 1px solid var(--border);
+      background: #1a1f2b; color: var(--text); padding: 0.5rem 0.75rem;
+    }
+    button {
+      background: var(--accent); color: #04120c; font-weight: 700; border: none; cursor: pointer;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    main { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: 1rem; gap: 0.75rem; }
+    #log {
+      flex: 1; min-height: 320px; overflow: auto; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 12px; padding: 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; line-height: 1.45;
+    }
+    .msg { margin-bottom: 0.75rem; white-space: pre-wrap; word-break: break-word; }
+    .msg.user { color: var(--accent); }
+    .msg.assistant { color: var(--text); }
+    .msg.tool { color: var(--warn); }
+    .msg.error { color: var(--err); }
+    .msg.meta { color: var(--muted); font-size: 0.75rem; }
+    .composer { display: flex; gap: 0.5rem; }
+    .composer textarea { flex: 1; min-height: 64px; resize: vertical; }
+    .status { font-size: 0.75rem; color: var(--muted); }
+    .status.ok { color: var(--accent); }
+    .status.bad { color: var(--err); }
+    details { font-size: 0.8rem; color: var(--muted); }
+    details pre {
+      margin-top: 0.5rem; padding: 0.75rem; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px; overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🦞 Stream chat → kit</h1>
+    <a href="/">Agent Studio</a>
+    <div class="cfg">
+      <input id="baseUrl" value="" placeholder="API base (empty = same origin)" />
+      <button type="button" class="secondary" id="pingBtn">healthz</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="status" id="status">Checking server…</p>
+
+    <label style="font-size:0.8rem;color:var(--muted)">Privy access token (Bearer)</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Paste getAccessToken() value — not the app secret" />
+
+    <div class="composer">
+      <textarea id="prompt" placeholder="Ask the Solana agent… e.g. what is my public key?"></textarea>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <button type="button" id="sendBtn">Send /stream</button>
+        <button type="button" class="secondary" id="authBtn">GET /auth</button>
+      </div>
+    </div>
+
+    <div id="log"></div>
+
+    <details open>
+      <summary>How to get a Privy token (React)</summary>
+<pre>// 1) Create app at https://dashboard.privy.io
+// 2) Same PRIVY_APP_ID as kit backend (src/.env.local)
+// 3) Enable Solana embedded / linked wallet for your users
+
+import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+
+&lt;PrivyProvider appId={import.meta.env.VITE_PRIVY_APP_ID}&gt;
+  &lt;App /&gt;
+&lt;/PrivyProvider&gt;
+
+// In a component:
+const { ready, authenticated, login, getAccessToken } = usePrivy();
+await login();
+const token = await getAccessToken();
+// paste token above, or set Authorization: Bearer ${token} on /stream
+</pre>
+    </details>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    const statusEl = $("status");
+
+    function base() {
+      const v = $("baseUrl").value.trim();
+      return v.replace(/\/$/, "") || "";
+    }
+
+    function append(cls, text) {
+      const d = document.createElement("div");
+      d.className = "msg " + cls;
+      d.textContent = text;
+      logEl.appendChild(d);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function ping() {
+      try {
+        const r = await fetch(base() + "/healthz");
+        const j = await r.json();
+        statusEl.textContent = `kit OK · ${j.status} · ${j.timestamp || ""}`;
+        statusEl.className = "status ok";
+      } catch (e) {
+        statusEl.textContent = `kit unreachable: ${e.message} — is cargo/npm kit running on :6969?`;
+        statusEl.className = "status bad";
+      }
+    }
+
+    async function checkAuth() {
+      const token = $("token").value.trim();
+      if (!token) {
+        append("error", "Paste a Privy access token first");
+        return;
+      }
+      append("meta", "GET /auth …");
+      const r = await fetch(base() + "/auth", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        append("error", `auth ${r.status}: ${JSON.stringify(j)}`);
+        return;
+      }
+      append("meta", `auth ok · wallet ${j.wallet_address || "(none)"}`);
+    }
+
+    /**
+     * POST /stream is SSE over fetch (not EventSource — we need Authorization + body).
+     * Events: data: {"type":"Message"|"ToolCall"|"Error", "content": ...}
+     */
+    async function sendStream() {
+      const token = $("token").value.trim();
+      const prompt = $("prompt").value.trim();
+      if (!token) {
+        append("error", "Missing Privy access token");
+        return;
+      }
+      if (!prompt) {
+        append("error", "Empty prompt");
+        return;
+      }
+
+      $("sendBtn").disabled = true;
+      append("user", "you: " + prompt);
+      append("meta", "POST /stream …");
+
+      try {
+        const res = await fetch(base() + "/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            prompt,
+            chat_history: [],
+            chain: "solana",
+          }),
+        });
+
+        if (!res.ok && !res.body) {
+          append("error", `HTTP ${res.status}`);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let assistant = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+
+          // SSE frames separated by blank line
+          const parts = buf.split("\n\n");
+          buf = parts.pop() || "";
+
+          for (const frame of parts) {
+            const dataLine = frame
+              .split("\n")
+              .map((l) => l.trimEnd())
+              .find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+            const raw = dataLine.replace(/^data:\s?/, "");
+            let ev;
+            try {
+              ev = JSON.parse(raw);
+            } catch {
+              append("meta", raw);
+              continue;
+            }
+
+            if (ev.type === "Message") {
+              const chunk = typeof ev.content === "string" ? ev.content : JSON.stringify(ev.content);
+              assistant += chunk;
+              // update last assistant bubble or create
+              const last = logEl.lastElementChild;
+              if (last && last.dataset.role === "assistant") {
+                last.textContent = "agent: " + assistant;
+              } else {
+                const d = document.createElement("div");
+                d.className = "msg assistant";
+                d.dataset.role = "assistant";
+                d.textContent = "agent: " + assistant;
+                logEl.appendChild(d);
+              }
+              logEl.scrollTop = logEl.scrollHeight;
+            } else if (ev.type === "ToolCall") {
+              const c = ev.content || {};
+              append("tool", `tool ${c.name || "?"}: ${c.result || JSON.stringify(c)}`);
+            } else if (ev.type === "Error") {
+              append("error", String(ev.content || ev));
+            } else {
+              append("meta", JSON.stringify(ev));
+            }
+          }
+        }
+        append("meta", "stream end");
+      } catch (e) {
+        append("error", e.message || String(e));
+      } finally {
+        $("sendBtn").disabled = false;
+      }
+    }
+
+    $("pingBtn").onclick = ping;
+    $("authBtn").onclick = checkAuth;
+    $("sendBtn").onclick = sendStream;
+    $("prompt").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendStream();
+    });
+
+    ping();
+  </script>
+</body>
+</html>
