@@ -1,5 +1,17 @@
 # Installation
 
+## Hosted one-shot (Fly)
+
+No install required — open Agent Studio:
+
+| Surface | URL |
+|---------|-----|
+| Agent Studio | https://openclawd-solana-kit.fly.dev/ |
+| Stream chat | https://openclawd-solana-kit.fly.dev/chat.html |
+| Health | https://openclawd-solana-kit.fly.dev/healthz |
+
+Maintainers deploy with `fly deploy` (see root `fly.toml` + `Dockerfile`).
+
 ## One-shot (npm / curl)
 
 From a clone of this repository:
@@ -7,14 +19,23 @@ From a clone of this repository:
 ```bash
 npm install
 npm run setup    # copies .env.example → .env if missing
-npm run doctor   # Rust + PRIVY_* readiness
-npm run kit      # cargo run --features full --bin kit
+# set SOLANA_PRIVATE_KEY=...  (XAI_API_KEY optional for Grok 4.5)
+npm run doctor
+npm start        # cargo run --features full --bin kit
+# open http://127.0.0.1:6969/
+```
+
+npx from GitHub:
+
+```bash
+npx --yes github:Solizardking/on-chain-ai-kit doctor
+npx --yes github:Solizardking/on-chain-ai-kit start
 ```
 
 Curl installer (clones or uses local tree, builds `kit`, installs `~/.local/bin/openclawd-kit`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawdsolana/OpenClawd/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Solizardking/on-chain-ai-kit/main/scripts/install.sh | bash
 # or: sh scripts/install.sh
 ```
 
@@ -22,7 +43,7 @@ CLI binary names: `openclawd-kit` / `openclawd-solana-kit` (see root `package.js
 
 ## Rust (Cargo)
 
-From this repository root (crate lives at the repo root, not a nested `Kit/` folder):
+From this repository root (crate lives at the repo root):
 
 ```bash
 cargo check
@@ -35,7 +56,8 @@ cargo check --features full
 cargo run --features full --bin kit
 ```
 
-HTTP requires Privy env vars. The kit loads `.env`, `.env.local`, and `src/.env.local`
+HTTP defaults to **local** auth (`SOLANA_PRIVATE_KEY`). Optional Privy multi-user mode:
+`KIT_AUTH_MODE=privy` + `PRIVY_*`. The kit loads `.env`, `.env.local`, and `src/.env.local`
 automatically (see [Configuration](./configuration.md)).
 
 If you are embedding the crate from a sibling project, depend on it by path:

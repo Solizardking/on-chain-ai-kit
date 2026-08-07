@@ -122,19 +122,34 @@ function runCargo(args, { inherit = true } = {}) {
 function cmdHelp() {
   console.log(`
 OpenClawd Solana Kit  ·  openclawd-solana-kit
+Onchain AI Kit by Clawd — Agent Studio + SVM tools
 
   openclawd-kit setup              Copy .env.example → .env if missing
   openclawd-kit doctor             Check Rust + env readiness
   openclawd-kit check              cargo check (default solana)
   openclawd-kit build              cargo build --features full --bin kit
-  openclawd-kit start              Run HTTP SSE on 0.0.0.0:6969
+  openclawd-kit start              Run HTTP + Agent Studio on 0.0.0.0:6969
+  openclawd-kit kit                Alias for start
   openclawd-kit example simple     Run examples/simple.rs
   openclawd-kit example solana_agent
 
-One-shot:
-  npm install && npm run kit
+One-shot (local):
+  npx openclawd-solana-kit setup
+  npx openclawd-solana-kit doctor
   npx openclawd-solana-kit start
-  curl -fsSL <raw>/scripts/install.sh | bash
+  # open http://127.0.0.1:6969/  and  /chat.html
+
+  curl -fsSL https://raw.githubusercontent.com/Solizardking/on-chain-ai-kit/main/scripts/install.sh | bash
+  openclawd-kit start
+
+Hosted one-shot (Fly):
+  https://openclawd-solana-kit.fly.dev/
+  https://openclawd-solana-kit.fly.dev/chat.html
+
+Env:
+  SOLANA_PRIVATE_KEY   required (local auth, default)
+  XAI_API_KEY          optional → Grok 4.5 via Responses API
+  CLAWD_MESH_*         free mesh fallback when no XAI key
 
 Docs: docs/quickstart.md · docs/configuration.md · docs/http_service.md
 Kit root: ${PKG_ROOT}
@@ -151,7 +166,7 @@ function cmdSetup() {
     log(`.env already exists at ${dest}`);
   } else {
     copyFileSync(example, dest);
-    log(`wrote ${dest} — fill SOLANA_PRIVATE_KEY + ANTHROPIC_API_KEY (Privy optional)`);
+    log(`wrote ${dest} — fill SOLANA_PRIVATE_KEY (required); XAI_API_KEY optional for Grok 4.5`);
   }
   const local = join(PKG_ROOT, "src/.env.local");
   if (existsSync(local)) {
@@ -185,7 +200,6 @@ function cmdDoctor() {
 
   if (mode === "privy") {
     const privyOk = check(PRIVY_KEYS, "HTTP / Privy");
-    check(["ANTHROPIC_API_KEY"], "agent LLM");
     if (!privyOk) {
       console.log(`
 Fix Privy mode:
@@ -197,26 +211,42 @@ Fix Privy mode:
     }
   } else {
     const localOk = check(LOCAL_KEYS, "HTTP / local signer");
-    const mesh =
-      process.env.CLAWD_MESH_BASE_URL ||
-      process.env.OPENAI_BASE_URL ||
-      "https://clawd-inference-mesh.fly.dev/v1";
-    const model =
-      process.env.CLAWD_MESH_MODEL || process.env.OPENAI_MODEL || "zkrouter/auto";
-    log(`LLM mesh: ${mesh} · model=${model}`);
     if (!localOk) {
       console.log(`
 Fix local mode (default, no Privy):
   1. openclawd-kit setup
   2. Set SOLANA_PRIVATE_KEY in .env or src/.env.local
   3. openclawd-kit start
-  LLM defaults to Clawd mesh (no ANTHROPIC key required)
+  LLM: XAI_API_KEY → Grok 4.5; else Clawd free mesh (no Anthropic key)
   Optional multi-user: KIT_AUTH_MODE=privy + PRIVY_*
 `);
       process.exit(2);
     }
   }
-  log("doctor: OK — openclawd-kit start");
+
+  const xai = process.env.XAI_API_KEY?.trim();
+  if (xai) {
+    const model = process.env.XAI_MODEL || process.env.CLAWD_MESH_MODEL || "grok-4.5";
+    const api = process.env.CLAWD_LLM_API || "responses";
+    log(`LLM: xAI Grok · model=${model} · api=${api} · base=${process.env.XAI_BASE_URL || "https://api.x.ai/v1"}`);
+  } else {
+    const mesh =
+      process.env.CLAWD_MESH_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://clawd-inference-mesh.fly.dev/v1";
+    const model =
+      process.env.CLAWD_MESH_MODEL || process.env.OPENAI_MODEL || "zkrouter/auto";
+    log(`LLM: Clawd mesh · ${mesh} · model=${model} (set XAI_API_KEY for Grok 4.5)`);
+  }
+
+  const fe = join(PKG_ROOT, "frontend", "index.html");
+  const chat = join(PKG_ROOT, "frontend", "chat.html");
+  log(`frontend: ${existsSync(fe) ? "index.html ok" : "MISSING index.html"}`);
+  log(`frontend: ${existsSync(chat) ? "chat.html ok" : "MISSING chat.html"}`);
+  if (!existsSync(fe)) process.exit(2);
+
+  log("doctor: OK — openclawd-kit start → http://127.0.0.1:6969/");
+  log("hosted: https://openclawd-solana-kit.fly.dev/");
 }
 
 function cmdStart() {

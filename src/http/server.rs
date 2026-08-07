@@ -11,14 +11,21 @@ use super::routes::{auth, healthz, stream};
 use super::state::AppState;
 
 fn resolve_static_dir() -> PathBuf {
-    // Prefer paths relative to the crate root so `cargo run` works from any cwd.
+    // Prefer explicit deploy path (Docker/Fly), then crate root, then CWD.
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(custom) = std::env::var("CLAWD_FRONTEND_DIR").or_else(|_| std::env::var("KIT_FRONTEND_DIR"))
+    {
+        if !custom.trim().is_empty() {
+            candidates.push(PathBuf::from(custom));
+        }
+    }
+    candidates.push(PathBuf::from("/app/frontend"));
+    candidates.push(PathBuf::from("/app/frontend/dist"));
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let candidates = [
-        manifest.join("frontend/dist"),
-        manifest.join("frontend"),
-        PathBuf::from("./frontend/dist"),
-        PathBuf::from("./frontend"),
-    ];
+    candidates.push(manifest.join("frontend/dist"));
+    candidates.push(manifest.join("frontend"));
+    candidates.push(PathBuf::from("./frontend/dist"));
+    candidates.push(PathBuf::from("./frontend"));
     for c in candidates {
         if c.is_dir() {
             return c;

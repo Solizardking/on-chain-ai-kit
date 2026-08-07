@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-REPO_URL="${CLAWD_REPO_URL:-https://github.com/clawdsolana/OpenClawd.git}"
+REPO_URL="${CLAWD_REPO_URL:-https://github.com/Solizardking/on-chain-ai-kit.git}"
 INSTALL_DIR="${CLAWD_INSTALL_DIR:-$HOME/.openclawd-solana-kit}"
 BRANCH="${CLAWD_BRANCH:-main}"
 
@@ -84,7 +84,9 @@ echo "  cli:    $HOME/.local/bin/openclawd-kit   (ensure ~/.local/bin is on PATH
 echo ""
 echo "Next:"
 echo "  openclawd-kit setup     # if you still need .env"
-echo "  openclawd-kit doctor    # check PRIVY_* + Rust"
-echo "  openclawd-kit start     # HTTP SSE on :6969"
+echo "  openclawd-kit doctor    # check SOLANA_PRIVATE_KEY + Rust (+ XAI_API_KEY)"
+echo "  openclawd-kit start     # Agent Studio + API on :6969"
+echo "  open http://127.0.0.1:6969/   and  /chat.html"
 echo ""
+echo "Hosted: https://openclawd-solana-kit.fly.dev/"
 echo "Docs: $ROOT/docs/quickstart.md · configuration.md · http_service.md"

@@ -13,63 +13,75 @@ full             = solana + http (Privy SSE on 0.0.0.0:6969)
 
 ## One-shot install (npm / curl)
 
-### From this repo (recommended)
+### Hosted (Fly — open Agent Studio now)
+
+| Surface | URL |
+|---------|-----|
+| **Agent Studio** | https://openclawd-solana-kit.fly.dev/ |
+| **Stream chat** | https://openclawd-solana-kit.fly.dev/chat.html |
+| **Health** | https://openclawd-solana-kit.fly.dev/healthz |
+
+```bash
+# maintainers: redeploy from clone
+fly deploy --ha=false
+# fly secrets set SOLANA_PRIVATE_KEY=... XAI_API_KEY=...
+```
+
+### Local one-shot (npm)
 
 ```bash
 cd on-chain-ai-kit
 npm install
 npm run setup          # copies .env.example → .env if needed
-# edit .env or keep using src/.env.local (both are loaded)
-npm run doctor         # checks Rust + PRIVY_* 
-npm run kit            # cargo run --features full --bin kit
+# edit .env: SOLANA_PRIVATE_KEY=...  (XAI_API_KEY optional → Grok 4.5)
+npm run doctor
+npm start              # Agent Studio + API on :6969
+# open http://127.0.0.1:6969/  and  /chat.html
 ```
 
-### npx (after publish / from git)
+### npx (from git / after publish)
 
 ```bash
-npx --yes github:clawdsolana/OpenClawd doctor
-npx --yes github:clawdsolana/OpenClawd start
+npx --yes github:Solizardking/on-chain-ai-kit doctor
+npx --yes github:Solizardking/on-chain-ai-kit start
+# after npm publish:  npx openclawd-solana-kit start
 ```
 
 ### curl | bash
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawdsolana/OpenClawd/main/scripts/install.sh | bash
-# then:
+curl -fsSL https://raw.githubusercontent.com/Solizardking/on-chain-ai-kit/main/scripts/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 openclawd-kit doctor
 openclawd-kit start
 ```
 
-Local clone equivalent:
-
-```bash
-sh scripts/install.sh
-```
+Local clone: `sh scripts/install.sh`
 
 ---
 
-## HTTP kit (local + Clawd mesh)
+## HTTP kit (local + mesh / xAI)
 
 ```bash
 # needs SOLANA_PRIVATE_KEY in .env or src/.env.local
-# LLM defaults to Clawd inference mesh (no Anthropic key)
+# LLM: XAI_API_KEY → Grok 4.5; else Clawd free mesh
 cargo run --features full --bin kit
-# or: npm run kit
+# or: npm start
 ```
 
 | Concern | Default |
 |---------|---------|
 | Auth | **`local`** — `SOLANA_PRIVATE_KEY`, no Bearer |
-| LLM | **`https://clawd-inference-mesh.fly.dev/v1`** · model `zkrouter/auto` |
-| Alias | `https://mesh.x402.wtf/v1` |
+| LLM (preferred) | **`XAI_API_KEY`** → Grok **4.5** · `https://api.x.ai/v1/responses` |
+| LLM (fallback) | Clawd mesh · `zkrouter/auto` · `https://clawd-inference-mesh.fly.dev/v1` |
+| Frontend | `/` Agent Studio · `/chat.html` · same-origin `/stream` |
 | Optional multi-user | `KIT_AUTH_MODE=privy` + `PRIVY_*` |
 
 ```bash
-# Frontend
-open http://localhost:6969/chat.html
+open http://127.0.0.1:6969/
+open http://127.0.0.1:6969/chat.html
 curl -s http://127.0.0.1:6969/healthz
-# → auth_mode=local, mesh_base_url=…/v1, mesh_model=zkrouter/auto
+# → auth_mode, llm_provider, mesh_model, …
 ```
 
 Env: [`.env.example`](./.env.example) · [docs/configuration.md](./docs/configuration.md)

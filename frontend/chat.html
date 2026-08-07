@@ -149,7 +149,17 @@
         logEl.scrollTop = logEl.scrollHeight;
       } else if (ev.type === "ToolCall") {
         const c = ev.content || {};
-        append("tool", `tool ${c.name || "?"}: ${c.result || JSON.stringify(c)}`);
+        let result = c.result;
+        // Tool results are often JSON-encoded strings (e.g. "\"Pubkey…\"")
+        if (typeof result === "string") {
+          try {
+            const once = JSON.parse(result);
+            result = typeof once === "string" ? once : JSON.stringify(once);
+          } catch { /* keep raw */ }
+        } else if (result != null) {
+          result = JSON.stringify(result);
+        }
+        append("tool", `tool ${c.name || "?"}: ${result ?? JSON.stringify(c)}`);
         state.assistant = "";
         state.assistantEl = null;
       } else if (ev.type === "Error") {

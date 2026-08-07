@@ -1,8 +1,9 @@
 {
   "name": "openclawd-solana-kit",
   "version": "1.0.0",
-  "description": "OpenClawd Solana Kit — SVM agents, SignerContext, Privy SSE HTTP. One-shot npm CLI.",
+  "description": "Onchain AI Kit by Clawd — one-shot npm CLI for SVM agents + Agent Studio (npx openclawd-solana-kit start).",
   "license": "MIT",
+  "type": "commonjs",
   "bin": {
     "openclawd-kit": "./npm/bin/openclawd-kit.mjs",
     "openclawd-solana-kit": "./npm/bin/openclawd-kit.mjs"
@@ -16,6 +17,7 @@
     "example:simple": "node ./npm/bin/openclawd-kit.mjs example simple",
     "example:agent": "node ./npm/bin/openclawd-kit.mjs example solana_agent",
     "build:kit": "node ./npm/bin/openclawd-kit.mjs build",
+    "pack:check": "npm pack --dry-run",
     "postinstall": "node ./npm/bin/openclawd-kit.mjs postinstall || true"
   },
   "engines": {
@@ -25,6 +27,7 @@
     "npm/**",
     "scripts/install.sh",
     "scripts/send-test-req.sh",
+    "scripts/set-fly-secrets.sh",
     ".env.example",
     "Cargo.toml",
     "Cargo.lock",
@@ -32,20 +35,31 @@
     "examples/**",
     "docs/**",
     "frontend/**",
+    "Dockerfile",
+    "fly.toml",
     "README.md",
     "LICENSE"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/clawdsolana/OpenClawd"
+    "url": "https://github.com/Solizardking/on-chain-ai-kit.git"
+  },
+  "homepage": "https://openclawd-solana-kit.fly.dev/",
+  "bugs": {
+    "url": "https://github.com/Solizardking/on-chain-ai-kit/issues"
   },
   "keywords": [
     "solana",
     "openclawd",
     "clawd",
+    "onchain-ai",
+    "x402",
+    "xai",
+    "grok",
     "rig",
     "agent",
     "privy",
-    "svm"
+    "svm",
+    "fly"
   ]
 }
