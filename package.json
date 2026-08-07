@@ -18,7 +18,8 @@
     "example:agent": "node ./npm/bin/openclawd-kit.mjs example solana_agent",
     "build:kit": "node ./npm/bin/openclawd-kit.mjs build",
     "pack:check": "npm pack --dry-run",
-    "postinstall": "node ./npm/bin/openclawd-kit.mjs postinstall || true"
+    "postinstall": "node ./npm/bin/openclawd-kit.mjs postinstall || true",
+    "test": "node --test npm/test/**/*.test.mjs"
   },
   "engines": {
     "node": ">=18"

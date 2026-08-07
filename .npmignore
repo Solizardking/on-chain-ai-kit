@@ -1,0 +1,40 @@
+# Never ship local secrets or build artifacts in the npm tarball
+.env
+.env.*
+!**/.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/.env.local
+**/src/.env.local
+src/.env.local
+
+# Dev / VCS / build
+.git
+.github
+target
+**/target
+**/node_modules
+**/*.log
+**/.DS_Store
+.idea
+.vscode
+.cargo
+scratch
+tmp
+temp
+
+# Heavy monorepo paths not needed for the kit CLI one-shot
+automaton/node_modules
+automaton/dist
+ooda/node_modules
+ooda/journal
+zk-primitives/**/node_modules
+zk-primitives/**/target
+zk-primitives/**/dist
+
+# Tests/fixtures that are not required at runtime can stay via files allowlist;
+# still exclude any accidental env dumps
+**/*.pem
+**/*secret*
+**/*credentials*
