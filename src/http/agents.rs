@@ -1,7 +1,6 @@
-use crate::http::state::AppState;
 use actix_web::{get, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 
@@ -79,14 +78,20 @@ pub struct MintAgentRequest {
 
 /// Resolve the lobster-council/ and agents directory paths
 fn get_agents_dir() -> PathBuf {
-    // First try: lobster-council/ in the project root
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let lobster = cwd.join("lobster-council");
-    if lobster.exists() {
-        return lobster;
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        manifest.join("lobster-council"),
+        std::env::current_dir()
+            .unwrap_or_default()
+            .join("lobster-council"),
+        PathBuf::from("lobster-council"),
+    ];
+    for c in candidates {
+        if c.is_dir() {
+            return c;
+        }
     }
-    // Fallback: look relative to this binary
-    PathBuf::from("lobster-council")
+    manifest.join("lobster-council")
 }
 
 fn load_all_agent_definitions() -> Vec<AgentDefinition> {
@@ -102,7 +107,7 @@ fn load_all_agent_definitions() -> Vec<AgentDefinition> {
             let path = entry.path();
             if path.extension().map_or(false, |ext| ext == "json") {
                 if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(mut agent) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Ok(agent) = serde_json::from_str::<serde_json::Value>(&content) {
                         // Normalize the agent definition
                         let identifier = agent
                             .get("identifier")

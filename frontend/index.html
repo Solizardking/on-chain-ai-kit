@@ -363,6 +363,10 @@
   </div>
 </div>
 
+<div id="kit-banner" style="padding:0.5rem 2rem;font-size:0.8rem;background:#13161c;border-bottom:1px solid #2a3040;color:#8892a6;">
+  Checking kit…
+</div>
+
 <div class="main">
   <!-- Gallery Page -->
   <div class="page active" id="page-gallery">
@@ -485,6 +489,38 @@ let agents = [];
 let walletAddress = null;
 let agentsOnChain = {};
 
+/** Kit API origin — same rules as chat.html */
+function defaultApiBase() {
+  const q = new URLSearchParams(location.search).get("api");
+  if (q) return q.replace(/\/$/, "");
+  const stored = localStorage.getItem("kit_api_base");
+  if (stored) return stored.replace(/\/$/, "");
+  if (location.protocol === "file:" || !location.host) return "http://127.0.0.1:6969";
+  if (location.port && location.port !== "6969") return "http://127.0.0.1:6969";
+  return "";
+}
+const API_BASE = defaultApiBase();
+function apiUrl(path) {
+  return API_BASE ? API_BASE + path : path;
+}
+
+async function pingKit() {
+  const el = document.getElementById("kit-banner");
+  try {
+    const r = await fetch(apiUrl("/healthz"), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    el.style.color = "#14f195";
+    el.textContent =
+      `kit OK · ${j.auth_mode || "?"} · mesh ${j.mesh_base_url || "?"} · model ${j.mesh_model || "?"}` +
+      (j.local_pubkey ? ` · wallet ${String(j.local_pubkey).slice(0, 8)}…` : "");
+  } catch (e) {
+    el.style.color = "#f0b90b";
+    el.textContent =
+      `kit offline (${e.message}). From repo root: cargo run --features full --bin kit  →  open http://127.0.0.1:6969/`;
+  }
+}
+
 // ─── Page Routing ───────────────────────────────────────────────────
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -544,14 +580,18 @@ async function loadAgents() {
 
   try {
     // Try API first, fallback to local catalog
-    let res = await fetch('/api/agents/index.json');
-    if (!res.ok) throw new Error('API not available');
+    let res = await fetch(apiUrl('/api/agents/index.json'), { cache: 'no-store' });
+    if (!res.ok) throw new Error('API not available (' + res.status + ')');
     const data = await res.json();
     agents = data.agents || [];
-    updateStats(data.stats);
+    // Mark on-chain flags from catalog when present
+    for (const a of agents) {
+      if (a.on_chain && a.mint_address) agentsOnChain[a.identifier] = a.mint_address;
+    }
+    updateStats(data.stats || { total: agents.length, on_chain: 0, by_category: {} });
     populateCategories(data.categories || []);
   } catch (e) {
-    console.log('API unavailable, using inline catalog');
+    console.warn('API unavailable, using inline catalog:', e);
     // Fallback: load from known lobster council + agent templates
     agents = [
       { identifier: 'activistpinch', title: 'ActivistPinch', description: 'Governance voice of the Lobster Council. Receipts, conviction, transparent participation.', avatar: '🦞🗳️', tags: ['governance','solana','voice'], category: 'voice-council', author: 'CLAWD Council' },
@@ -641,7 +681,7 @@ async function showAgentDetail(identifier) {
 
   let fullConfig = {};
   try {
-    const res = await fetch(`/api/agents/${identifier}.json`);
+    const res = await fetch(apiUrl(`/api/agents/${encodeURIComponent(identifier)}.json`), { cache: 'no-store' });
     if (res.ok) fullConfig = await res.json();
   } catch {}
 
@@ -751,12 +791,18 @@ async function createAgent(event) {
 
   // Save to backend if available
   try {
-    await fetch('/api/agents/create', {
+    const res = await fetch(apiUrl('/api/agents/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(agent),
     });
-  } catch {}
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('create agent API:', err);
+    }
+  } catch (e) {
+    console.warn('create agent offline:', e);
+  }
 
   renderAgents();
   updateStatsFromAgents();
@@ -812,18 +858,19 @@ async function mintAgent(identifier) {
   status.innerHTML = '<div class="spinner" style="margin:0.5rem auto;"></div> Simulating on-chain registration...';
 
   try {
-    const res = await fetch('/api/agents/mint', {
+    const res = await fetch(apiUrl('/api/agents/mint'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, wallet_address: walletAddress }),
     });
-    const result = await res.json();
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
     status.innerHTML = `<pre style="font-size:0.75rem;">${JSON.stringify(result, null, 2)}</pre>`;
     actions.style.display = 'flex';
-    agentsOnChain[identifier] = result.mint_address || 'simulated';
+    agentsOnChain[identifier] = result.mint_address || result.status || 'simulated';
     renderAgents();
     updateStatsFromAgents();
-    showToast(`⛓️ Agent minted on-chain!`, 'success');
+    showToast(`⛓️ Agent mint: ${result.status || 'ok'}`, 'success');
   } catch (e) {
     status.innerHTML = `<span style="color:var(--red);">❌ ${e.message}</span>`;
     actions.style.display = 'flex';
@@ -845,6 +892,7 @@ function showToast(message, type = 'success') {
 }
 
 // ─── Init ──────────────────────────────────────────────────────────
+pingKit();
 loadAgents();
 </script>
 </body>
