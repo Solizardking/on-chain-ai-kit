@@ -26,7 +26,6 @@ The default feature set is Solana only. HTTP service support is available with
 From this repository:
 
 ```bash
-cd Kit
 cargo check
 cargo run --example simple
 ```
@@ -36,6 +35,16 @@ For a service build:
 ```bash
 cargo run --features full --bin kit
 ```
+
+### Crustacean Automation (Clawd constitution + kit + automaton)
+
+Installs the Clawd constitution/rules, builds this Rust kit (`src/` → `target/`), and the TypeScript automaton:
+
+```bash
+CLAWD_SKIP_START=1 CLAWD_LOCAL=1 sh scripts/crustacean-automation.sh
+```
+
+Kit agents load Law I–III via `openclawd_solana_kit::constitution` (wired into Solana/EVM/cross-chain preambles).
 
 The service listens on `0.0.0.0:6969` and exposes:
 

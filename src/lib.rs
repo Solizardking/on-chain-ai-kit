@@ -11,6 +11,7 @@ pub mod evm;
 pub mod cross_chain;
 
 pub mod common;
+pub mod constitution;
 pub mod data;
 pub mod dexscreener;
 pub mod reasoning_loop;

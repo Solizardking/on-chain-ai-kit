@@ -36,6 +36,8 @@ where
 use rig::agent::{Agent, AgentBuilder};
 use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
 
+use crate::constitution;
+
 pub fn claude_agent_builder() -> AgentBuilder<AnthropicCompletionModel> {
     rig::providers::anthropic::Client::from_env()
         .agent(rig::providers::anthropic::CLAUDE_3_5_SONNET)
@@ -43,9 +45,18 @@ pub fn claude_agent_builder() -> AgentBuilder<AnthropicCompletionModel> {
 
 pub async fn plain_agent() -> Result<Agent<AnthropicCompletionModel>> {
     Ok(claude_agent_builder()
-        .preamble("be nice to the users")
+        .preamble(&preamble_common())
         .max_tokens(1024)
         .build())
 }
 
+/// Shared Clawd constitution + core rules for all kit agents (Solana / EVM / cross-chain).
+/// Prefer [`preamble_common`] over the empty legacy constant.
+pub fn preamble_common() -> String {
+    constitution::clawd_system_preamble()
+}
+
+/// Legacy empty common preamble. Agents should use [`preamble_common`] so the
+/// Clawd constitution ships on every default agent path.
+#[deprecated(note = "use preamble_common() — includes Clawd constitution")]
 pub const PREAMBLE_COMMON: &str = "";

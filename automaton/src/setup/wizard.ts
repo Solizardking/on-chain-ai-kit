@@ -98,7 +98,7 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
   writeDefaultHeartbeatConfig();
   console.log(chalk.green("  heartbeat.yml written"));
 
-  // constitution.md (immutable — copied from repo, protected from self-modification)
+  // constitution.md + clawd-rules (immutable — copied from repo, protected from self-modification)
   const automatonDir = getAutomatonDir();
   const constitutionSrc = path.join(process.cwd(), "constitution.md");
   const constitutionDst = path.join(automatonDir, "constitution.md");
@@ -106,6 +106,19 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
     fs.copyFileSync(constitutionSrc, constitutionDst);
     fs.chmodSync(constitutionDst, 0o444); // read-only
     console.log(chalk.green("  constitution.md installed (read-only)"));
+  }
+  const rulesCandidates = [
+    path.join(process.cwd(), "scripts", "clawd-rules.txt"),
+    path.join(process.cwd(), "clawd-rules.txt"),
+  ];
+  for (const rulesSrc of rulesCandidates) {
+    if (fs.existsSync(rulesSrc)) {
+      const rulesDst = path.join(automatonDir, "clawd-rules.txt");
+      fs.copyFileSync(rulesSrc, rulesDst);
+      fs.chmodSync(rulesDst, 0o444);
+      console.log(chalk.green("  clawd-rules.txt installed (read-only)"));
+      break;
+    }
   }
 
   // SOUL.md

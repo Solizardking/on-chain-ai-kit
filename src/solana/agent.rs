@@ -7,16 +7,18 @@ use super::tools::{
     GetSolBalance, GetSplTokenBalance, PerformJupiterSwap, SellPumpFunToken, TransferSol,
     TransferSplToken,
 };
-use crate::common::{claude_agent_builder, PREAMBLE_COMMON};
+use crate::common::{claude_agent_builder, preamble_common};
 use crate::dexscreener::tools::SearchOnDexScreener;
 
 pub async fn create_solana_agent(
     preamble: Option<String>,
 ) -> Result<Agent<AnthropicCompletionModel>> {
-    let preamble = preamble.unwrap_or(format!(
-        "{} {}",
-        "you are a solana trading agent that can also interact with pump.fun;", PREAMBLE_COMMON
-    ));
+    let preamble = preamble.unwrap_or_else(|| {
+        format!(
+            "you are a solana trading agent that can also interact with pump.fun;\n\n{}",
+            preamble_common()
+        )
+    });
     Ok(claude_agent_builder()
         .preamble(&preamble)
         .max_tokens(1024)
